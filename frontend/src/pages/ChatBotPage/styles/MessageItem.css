@@ -5,6 +5,7 @@
     animation: fadeIn 0.3s ease;
     position: relative;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    margin-bottom: 40px;
   }
   
   .user-message {
@@ -125,6 +126,30 @@
     .message {
       max-width: 90%;
     }
+  }
+
+  .thinking-section {
+    background-color: #f0f4ff;
+    border-left: 3px solid #8492c4;
+    padding: 10px 15px;
+    margin-bottom: 15px;
+    border-radius: 6px;
+    position: relative;
+  }
+  
+  .thinking-section h4 {
+    margin: 0 0 8px 0;
+    color: #5a6894;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  
+  .thinking-section p {
+    font-style: italic;
+    font-size: 0.9rem;
+    color: #5a6894;
+    line-height: 1.4;
+    margin: 0;
   }
   
   

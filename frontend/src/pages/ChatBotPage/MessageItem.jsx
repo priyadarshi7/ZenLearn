@@ -3,6 +3,32 @@ import "./styles/MessageItem.css"
 const MessageItem = ({ message }) => {
   const { text, sender, timestamp, isSearch } = message
 
+  // Helper function to detect and format the thinking part
+  const formatMessageWithThinking = (messageText) => {
+    if (typeof messageText !== 'string') return messageText;
+    
+    // Check if the message contains a "think" part
+    if (messageText.includes("</think>")) {
+      const parts = messageText.split("</think>");
+      const thinkingPart = parts[0].replace("<think>", "");
+      const regularPart = parts[1] || "";
+      
+      return (
+        <>
+          {thinkingPart && (
+            <div className="thinking-section">
+              <h4>Thinking Process:</h4>
+              <p>{thinkingPart}</p>
+            </div>
+          )}
+          {regularPart && <p>{regularPart}</p>}
+        </>
+      );
+    }
+    
+    return <p>{messageText}</p>;
+  };
+
   if (sender === "bot" && isSearch && Array.isArray(text)) {
     return (
       <div className="message bot-message search-results">
@@ -35,7 +61,9 @@ const MessageItem = ({ message }) => {
   return (
     <div className={`message ${sender === "user" ? "user-message" : "bot-message"}`}>
       <div className="message-content">
-        <p>{typeof text === "string" ? text : JSON.stringify(text, null, 2)}</p>
+        {typeof text === "string" 
+          ? formatMessageWithThinking(text) 
+          : <p>{JSON.stringify(text, null, 2)}</p>}
         <div className="message-timestamp">{timestamp}</div>
       </div>
     </div>
@@ -43,4 +71,3 @@ const MessageItem = ({ message }) => {
 }
 
 export default MessageItem
-
