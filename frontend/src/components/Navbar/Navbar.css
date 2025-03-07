@@ -184,7 +184,7 @@
   
   .user-avatar {
     width: 40px;
-    height: 40px;
+    height: 60px;
     border-radius: 50%;
     overflow: hidden;
     cursor: pointer;
@@ -196,7 +196,6 @@
   
   .user-avatar:hover {
     transform: scale(1.05);
-    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.3);
   }
   
   .user-avatar img {
