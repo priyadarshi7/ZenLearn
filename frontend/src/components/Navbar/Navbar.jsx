@@ -11,7 +11,7 @@ const Navbar = () => {
 
   const { loginWithRedirect, isAuthenticated, logout, user } = useAuth0();
 
-  const pages = ["Home", "Meditation", "Speaking Dojo", "Communities", "Courses", "AI Assistant"];
+  const pages = ["Meditation", "Speaking Dojo", "Communities", "Courses", "AI Assistant"];
   const settings = ["Profile", "Account", "Dashboard", "Logout"];
   const services = ["Consulting", "Development", "Design", "Marketing"];
 

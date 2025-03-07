@@ -232,7 +232,7 @@
   .mobile-menu-button {
     display: none;
     cursor: pointer;
-    z-index: 20;
+    z-index: 200;
   }
   
   .hamburger {
