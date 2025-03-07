@@ -5,6 +5,9 @@
     height: 100%;
     background-color: #f9fafb;
     overflow: hidden;
+    position: absolute;
+    right: 0;
+    width: 80%;
   }
   
   .chat-header {
@@ -139,9 +142,9 @@
   
   .input-container {
     display: flex;
-    padding: 15px 20px;
+    padding: 8px 20px;
     background-color: #ffffff;
-    border-top: 1px solid rgba(0, 0, 0, 0.6);
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
     box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
     position: fixed;
     bottom: 0;
