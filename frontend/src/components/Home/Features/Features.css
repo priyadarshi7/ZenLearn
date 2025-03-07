@@ -1,0 +1,128 @@
+.features-section {
+    padding: 100px 0;
+    background-color: #ffffff;
+    font-family: zen;
+  }
+  
+  .features-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+  
+  .features-header {
+    text-align: center;
+    margin-bottom: 80px;
+  }
+  
+  .features-header h2 {
+    font-size: 42px;
+    color: #1a1a1a;
+    margin-bottom: 20px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  
+  .features-header p {
+    font-size: 18px;
+    color: #666666;
+    max-width: 600px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+  
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 40px;
+  }
+  
+  .feature-card {
+    background-color: #ffffff;
+    border-radius: 16px;
+    padding: 32px;
+    transition: all 0.3s ease;
+    border: 1px solid #f0f0f0;
+  }
+  
+  .feature-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+    border-color: transparent;
+  }
+  
+  .feature-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+    background-color: #f8f9ff;
+    color: #4361ee;
+    transition: all 0.3s ease;
+  }
+  
+  .feature-card:hover .feature-icon {
+    background-color: #4361ee;
+    color: #ffffff;
+  }
+  
+  .feature-card h3 {
+    font-size: 24px;
+    color: #1a1a1a;
+    margin: 0 0 16px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+  
+  .feature-card p {
+    font-size: 16px;
+    color: #666666;
+    line-height: 1.6;
+    margin: 0;
+  }
+  
+  @media (max-width: 1024px) {
+    .features-section {
+      padding: 80px 0;
+    }
+  
+    .features-header h2 {
+      font-size: 36px;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .features-section {
+      padding: 60px 0;
+    }
+  
+    .features-grid {
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 30px;
+    }
+  
+    .features-header {
+      margin-bottom: 60px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .features-section {
+      padding: 40px 0;
+    }
+  
+    .features-header h2 {
+      font-size: 32px;
+    }
+  
+    .feature-card {
+      padding: 24px;
+    }
+  
+    .feature-card h3 {
+      font-size: 20px;
+    }
+  }
