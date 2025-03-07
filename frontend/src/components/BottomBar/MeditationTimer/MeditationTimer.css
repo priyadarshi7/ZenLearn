@@ -1,0 +1,108 @@
+.meditation-timer {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 320px;
+    background: rgba(20, 20, 20);
+    color: white;
+    padding: 20px;
+    text-align: center;
+    border-radius: 15px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+    font-family: "zen";
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+}
+
+/* Breathing Section */
+.breathing-container {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 15px 0;
+}
+
+.breathing-static-circle {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    position: absolute;
+}
+
+.breathing-animated-circle {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    position: absolute;
+    transition: transform 4s ease-in-out;
+}
+
+.breathe-in {
+    transform: scale(1.3);
+    background: rgba(255, 255, 255, 0.6);
+}
+
+.breathe-out {
+    transform: scale(0.9);
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.breathing-text {
+    font-size: 18px;
+    font-weight: bold;
+    position: absolute;
+}
+
+/* Timer */
+.timer {
+    font-size: 24px;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+.elapsed-time {
+    font-size: 14px;
+    opacity: 0.8;
+    margin-top: 5px;
+}
+
+/* Buttons */
+.med-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.med-buttons button {
+    padding: 10px;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    color: white;
+    border-radius: 8px;
+    transition: 0.3s;
+}
+
+.med-start-btn {
+    background-color: #28a745;
+}
+
+.med-pause-btn {
+    background-color: #dc3545;
+}
+
+.med-restart-btn {
+    background-color: #007bff;
+}
+
+.med-buttons button:hover {
+    filter: brightness(1.2);
+}

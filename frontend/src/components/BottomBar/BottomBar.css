@@ -1,0 +1,187 @@
+/* Glassy Bottom Bar */
+.bottom-bar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(12px);
+    border-radius: 25px;
+    padding: 12px 24px;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
+    font-family: 'Zen', sans-serif;
+    z-index: 1200;
+    border: 2px solid #ff8c00;
+  }
+
+  .chatbot{
+    font-size: 15px;
+  }
+  
+  /* Icons */
+  .icon {
+    font-size: 20px;
+    color: white;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+  }
+  
+  .icon:hover {
+    transform: scale(1.1);
+  }
+  
+  /* Meditation Button */
+  .meditation-button {
+    cursor: pointer;
+    margin-top: 5px;
+  }
+  
+  .meditation-button .glow {
+    font-size: 20px;
+    color: #ff8c00;
+    animation: glow 1.5s infinite alternate;
+  }
+  
+  @keyframes glow {
+    0% {
+      filter: drop-shadow(0px 0px 6px rgba(255, 140, 0, 0.8));
+    }
+    100% {
+      filter: drop-shadow(0px 0px 16px rgba(255, 140, 0, 1));
+    }
+  }
+  
+  /* Meditation Timer Popup */
+  .meditation-timer {
+    position: fixed;
+    bottom: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 320px;
+    background: rgba(20, 20, 20);
+    color: white;
+    padding: 25px;
+    text-align: center;
+    border-radius: 18px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+    font-family: 'Zen', sans-serif;
+    z-index: 1200;
+  }
+  
+  /* Meditation Title */
+  .meditation-title {
+    font-size: 20px;
+    margin-bottom: 12px;
+  }
+  
+  /* Breathing Circle Section */
+  .breathing-container {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    margin: 20px auto;
+  }
+  
+  /* Static Circle */
+  .breathing-static-circle {
+    width: 120px;
+    height: 120px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 50%;
+    position: absolute;
+  }
+  
+  /* Animated Circle */
+  .breathing-animated-circle {
+    width: 120px;
+    height: 120px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    position: absolute;
+    transition: transform 4s ease-in-out;
+  }
+  
+  /* Breathing Animations */
+  .breathe-in {
+    transform: scale(1.2);
+  }
+  
+  .breathe-out {
+    transform: scale(0.8);
+  }
+  
+  /* Breathing Text */
+  .breathing-text {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 18px;
+    font-weight: bold;
+  }
+  
+  /* Timer Display */
+  .timer {
+    font-size: 24px;
+    font-weight: bold;
+    margin-top: 15px;
+  }
+  
+  /* Running Clock */
+  .elapsed-time {
+    font-size: 14px;
+    opacity: 0.8;
+    margin-top: 8px;
+  }
+  
+  /* Buttons */
+  .buttons button {
+    padding: 10px 14px;
+    margin-top: 12px;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    color: white;
+    border-radius: 8px;
+    transition: 0.3s;
+  }
+  
+  .start-btn {
+    background-color: #28a745;
+  }
+  
+  .pause-btn {
+    background-color: #dc3545;
+  }
+  
+  .buttons button:hover {
+    filter: brightness(1.2);
+  }
+
+  /* Icons */
+.icon {
+    font-size: 20px;
+    cursor: pointer;
+    transition: transform 0.2s ease, color 0.3s;
+}
+
+/* Theme-colored icons */
+/* .icon:nth-child(1) { color: #ff4757; } 
+.icon:nth-child(2) { color: #1e90ff; } 
+.icon:nth-child(3) { color: #32cd32; } 
+.glow { color: #ff8c00; }  */
+.icon:nth-child(1) { color: black; } 
+.icon:nth-child(2) { color: black; } 
+.icon:nth-child(3) { color: black; } 
+.glow { color: #ff8c00; } 
+
+/* Hover effect */
+.icon:hover {
+    transform: scale(1.1);
+    filter: brightness(1.2);
+}
+  

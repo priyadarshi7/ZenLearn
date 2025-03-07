@@ -1,0 +1,97 @@
+.whiteboard-modal {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80vw;
+    height: 75vh;
+    background: white;
+    box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  
+  /* Header Styling */
+  .whiteboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: #1976d2;
+    color: white;
+    font-size: 20px;
+    font-weight: bold;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+  }
+  
+  .close-btn {
+    color: white !important;
+  }
+  
+  /* Toolbar Styling */
+  .whiteboard-toolbar {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    padding: 10px;
+    background: #f5f5f5;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  .toolbar-btn {
+    color: #1976d2 !important;
+    background: #e3f2fd !important;
+    border-radius: 50%;
+    padding: 8px;
+    transition: 0.2s;
+  }
+  
+  .toolbar-btn:hover {
+    background: #bbdefb !important;
+  }
+  
+  /* Eraser Active Styling */
+  .eraser-active {
+    background: #ffebee !important;
+    color: #d32f2f !important;
+  }
+  
+  /* Canvas Area */
+  .whiteboard-canvas {
+    flex: 1;
+    overflow: hidden;
+  }
+  
+  /* Color Picker & Stroke Width */
+  .whiteboard-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 10px;
+    background: #f5f5f5;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  .slider-container {
+    width: 200px;
+  }
+  
+  .slider-container span {
+    display: block;
+    text-align: center;
+    font-size: 14px;
+    margin-bottom: 5px;
+  }
+  
+  /* Footer */
+  .whiteboard-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 10px;
+    background: #f5f5f5;
+    border-top: 1px solid #ddd;
+  }
+  
