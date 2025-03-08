@@ -11,6 +11,15 @@ import csv
 import plotly.express as px
 import plotly.graph_objects as go
 from PIL import Image
+from dotenv import load_dotenv
+from elevenlabs.client import ElevenLabs
+from elevenlabs import play
+import threading
+import io
+from pygame import mixer
+
+# Load environment variables
+load_dotenv()
 
 # Set page config for better appearance
 st.set_page_config(
@@ -36,6 +45,49 @@ MOVEMENT_THRESHOLD = 0.015
 POSTURE_ANGLE_THRESHOLD = 8
 EAR_THRESHOLD = 0.20
 CLOSED_FRAMES_THRESHOLD = 3
+MEDITATION_DURATION = 120  # 2 minutes in seconds
+
+# Initialize Eleven Labs client
+@st.cache_resource
+def init_elevenlabs_client():
+    return ElevenLabs(
+        api_key=os.getenv("ELEVENLABS_API_KEY"),
+    )
+
+# Initialize audio mixer
+mixer.init()
+
+# Initialize voice feedback cache
+voice_feedback_cache = {}
+
+# Function to get or create voice feedback
+def get_voice_feedback(message, client):
+    if message not in voice_feedback_cache:
+        try:
+            audio_generator = client.text_to_speech.convert(
+                text=message,
+                voice_id="JBFqnCBsd6RMkjVDRZzb",
+                model_id="eleven_multilingual_v2",
+                output_format="mp3_44100_128",
+            )
+            # Convert generator to bytes
+            audio = b''.join(audio_generator)
+            voice_feedback_cache[message] = audio
+        except Exception as e:
+            st.error(f"Error generating voice: {str(e)}")
+            return None
+    return voice_feedback_cache[message]
+
+# Function to play audio feedback in a separate thread
+def play_voice_feedback(message, client):
+    audio = get_voice_feedback(message, client)
+    if audio:
+        try:
+            sound = io.BytesIO(audio)
+            mixer.music.load(sound)
+            mixer.music.play()
+        except Exception as e:
+            st.error(f"Error playing audio: {str(e)}")
 
 # Face mesh indices
 LEFT_EYE_INDICES = [33, 160, 158, 133, 153, 144]
@@ -66,6 +118,8 @@ if 'past_sessions' not in st.session_state:
     st.session_state.past_sessions = []
 if 'camera_index' not in st.session_state:
     st.session_state.camera_index = 0
+if 'last_feedback_time' not in st.session_state:
+    st.session_state.last_feedback_time = {}
 
 # Helper functions
 def calculate_ear(eye_landmarks, frame_width, frame_height):
@@ -157,7 +211,7 @@ def save_session_report():
     
     return df
 
-def process_frame(frame):
+def process_frame(frame, elevenlabs_client):
     """Process a single frame for meditation monitoring"""
     # Flip frame horizontally
     frame = cv2.flip(frame, 1)
@@ -168,6 +222,13 @@ def process_frame(frame):
     st.session_state.session_data['total_frames'] += 1
     current_mistakes = []
     feedback_lines = []
+    
+    # Check if session should end based on duration
+    elapsed_time = time.time() - st.session_state.session_data['start_time']
+    if elapsed_time >= MEDITATION_DURATION:
+        st.session_state.session_active = False
+        play_voice_feedback("Your meditation session is complete. Well done.", elevenlabs_client)
+        return frame, True
     
     # Process frame with MediaPipe
     pose_results = pose.process(rgb_frame)
@@ -180,6 +241,10 @@ def process_frame(frame):
         if not posture_good:
             current_mistakes.append('posture')
             feedback_lines.append("Straighten your back!")
+            # Give voice feedback if needed
+            if time.time() - st.session_state.last_feedback_time.get('posture', 0) > 10:  # Only every 10 seconds
+                play_voice_feedback("Please straighten your back. Sit tall.", elevenlabs_client)
+                st.session_state.last_feedback_time['posture'] = time.time()
 
     # Eye state check
     eyes_closed = False
@@ -200,6 +265,10 @@ def process_frame(frame):
             current_mistakes.append('eyes')
             st.session_state.eye_closed_frames = 0
             feedback_lines.append("Keep eyes closed!")
+            # Give voice feedback if needed
+            if time.time() - st.session_state.last_feedback_time.get('eyes', 0) > 8:  # Only every 8 seconds
+                play_voice_feedback("Gently close your eyes to help focus inward.", elevenlabs_client)
+                st.session_state.last_feedback_time['eyes'] = time.time()
 
     # Movement detection
     movement_detected = False
@@ -215,6 +284,10 @@ def process_frame(frame):
                 current_mistakes.append('movement')
                 feedback_lines.append("Stay still!")
                 movement_detected = True
+                # Give voice feedback if needed
+                if time.time() - st.session_state.last_feedback_time.get('movement', 0) > 12:  # Only every 12 seconds
+                    play_voice_feedback("Try to remain still. Find your center.", elevenlabs_client)
+                    st.session_state.last_feedback_time['movement'] = time.time()
         
         # Update movement history (keep last 10 positions)
         st.session_state.movement_history.append(current_pos)
@@ -245,12 +318,18 @@ def process_frame(frame):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
         y_offset += 30
 
-    # Show real-time stats
+    # Show real-time stats and timer
+    remaining_time = max(0, MEDITATION_DURATION - elapsed_time)
+    minutes, seconds = divmod(int(remaining_time), 60)
+    timer_text = f"Time left: {minutes:02d}:{seconds:02d}"
     stats_text = f"Focus: {st.session_state.session_data['focus_score']:.1f}% | Mistakes: {st.session_state.session_data['mistakes']['total']}"
+    
+    cv2.putText(frame, timer_text, (frame_width - 200, 30),
+               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
     cv2.putText(frame, stats_text, (10, frame_height - 10),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
     
-    return frame
+    return frame, False
 
 def reset_session_data():
     """Reset session data for a new meditation session"""
@@ -269,6 +348,7 @@ def reset_session_data():
     }
     st.session_state.movement_history = []
     st.session_state.eye_closed_frames = 0
+    st.session_state.last_feedback_time = {}
 
 def generate_progress_charts():
     """Generate charts to visualize progress across sessions"""
@@ -318,6 +398,9 @@ def generate_progress_charts():
 
 # Main app
 def main():
+    # Initialize Eleven Labs client
+    elevenlabs_client = init_elevenlabs_client()
+    
     # Custom CSS
     st.markdown("""
         <style>
@@ -365,7 +448,8 @@ def main():
     st.title("🧘‍♀️ Meditation Coach")
     st.markdown("""
     This application helps improve your meditation practice by monitoring your **posture**, **eye closure**, and **movement**. 
-    It provides real-time feedback and generates reports to track your progress over time.
+    It provides real-time voice and visual feedback and generates reports to track your progress over time.
+    Each session lasts for exactly 2 minutes.
     """)
     
     # Sidebar settings
@@ -410,6 +494,8 @@ def main():
         if start_button:
             st.session_state.session_active = True
             reset_session_data()
+            # Play welcome message
+            play_voice_feedback("Welcome to your 2-minute meditation session. Find a comfortable position, close your eyes, and stay still.", elevenlabs_client)
         
         if stop_button and st.session_state.session_active:
             st.session_state.session_active = False
@@ -442,10 +528,17 @@ def main():
                                 break
                             
                             # Process the frame
-                            processed_frame = process_frame(frame)
+                            processed_frame, session_ended = process_frame(frame, elevenlabs_client)
                             
                             # Display the processed frame
                             video_placeholder.image(processed_frame, channels="BGR", use_container_width=True)
+                            
+                            # Check if session ended due to time limit
+                            if session_ended:
+                                report_df = save_session_report()
+                                st.success("Session completed! Report saved.")
+                                st.dataframe(report_df)
+                                break
                     except Exception as e:
                         st.error(f"Error occurred: {str(e)}")
                     finally:
@@ -462,12 +555,13 @@ def main():
                           unsafe_allow_html=True)
                 st.caption("Current Focus Score", unsafe_allow_html=True)
                 
-                # Display session time
+                # Display remaining time
                 elapsed_time = time.time() - st.session_state.session_data['start_time']
-                minutes, seconds = divmod(int(elapsed_time), 60)
+                remaining_time = max(0, MEDITATION_DURATION - elapsed_time)
+                minutes, seconds = divmod(int(remaining_time), 60)
                 st.markdown(f"<h3 style='text-align: center;'>{minutes:02d}:{seconds:02d}</h3>", 
                           unsafe_allow_html=True)
-                st.caption("Session Time", unsafe_allow_html=True)
+                st.caption("Time Remaining", unsafe_allow_html=True)
                 
                 # Display feedback messages
                 st.subheader("Feedback")
@@ -489,7 +583,7 @@ def main():
                 st.markdown("</div>", unsafe_allow_html=True)
         else:
             # When no session is active
-            st.info("Click the 'Start' button in the sidebar to begin your meditation session.")
+            st.info("Click the 'Start' button in the sidebar to begin your 2-minute meditation session.")
             
             # Display instructions
             st.subheader("How It Works")
@@ -497,9 +591,10 @@ def main():
             1. **Find a comfortable position** - Sit in a stable, comfortable position with a straight back.
             2. **Close your eyes** - The app will detect if your eyes are open.
             3. **Stay still** - Minimize body movement during meditation.
-            4. **Focus on your breath** - Let the app monitor your physical state while you focus inward.
+            4. **Follow the voice instructions** - The app will guide you with voice feedback.
+            5. **Session duration** - Each session is exactly 2 minutes long.
             
-            The app will provide real-time feedback and track your progress over time.
+            The app will provide real-time voice feedback and track your progress over time.
             """)
     
     # Tab 2: Analytics
@@ -559,13 +654,13 @@ def main():
         # Tips for effective meditation
         st.subheader("Tips for Effective Meditation")
         st.markdown("""
-        - **Start small** - Begin with 5-10 minute sessions and gradually increase.
+        - **Start small** - Our 2-minute sessions are perfect for beginners.
         - **Consistent schedule** - Try to meditate at the same time each day.
         - **Comfortable position** - Sit with a straight spine but without tension.
         - **Breath awareness** - Focus on the sensation of breathing as an anchor.
         - **Be patient** - Don't judge yourself when your mind wanders; gently return focus.
         - **Body scan** - Regularly check for tension in your body and release it.
-        - **Use the app's feedback** - Let the app guide you to improve posture and stillness.
+        - **Use the voice guidance** - Let the app guide you to improve posture and stillness.
         """)
         
         # How the app works
@@ -576,6 +671,7 @@ def main():
         1. **Posture analysis** - We track key body points to measure spine alignment.
         2. **Eye state detection** - We analyze eye aspect ratio to detect eye closure.
         3. **Movement tracking** - We monitor overall body movement to encourage stillness.
+        4. **Voice feedback** - We provide real-time voice guidance when adjustments are needed.
         
         All processing happens locally on your machine, and no video is recorded or sent anywhere.
         """)
