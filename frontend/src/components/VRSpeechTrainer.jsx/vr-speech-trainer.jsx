@@ -1,21 +1,18 @@
-import { useState, useRef, useEffect, useMemo, Suspense } from "react"
+"use client"
+
+import { useState, useRef, useEffect, useMemo } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import {
   Environment,
-  useGLTF,
   Text,
-  Stats,
-  Sky,
   OrbitControls,
-  Html,
-  useAnimations,
-  Cloud,
   Stars,
   Sparkles,
-  CameraShake,
   Float,
-  Loader,
-  useProgress,
+  useTexture,
+  PerspectiveCamera,
+  MeshReflectorMaterial,
+  ContactShadows,
 } from "@react-three/drei"
 import * as THREE from "three"
 import { Button } from "../ui/button"
@@ -26,124 +23,176 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Input } from "../ui/input"
 import { Label } from "../ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs"
+import { Switch } from "../ui/switch"
 import {
   Activity,
   Fullscreen,
-  FullscreenIcon as FullscreenExit,
   Mic,
   MicOff,
   RefreshCw,
   RotateCcw,
   Save,
   Settings,
-  Smartphone,
   Timer,
   Users,
   Volume2,
   VolumeX,
   X,
+  Eye,
+  EyeOff,
+  Headphones,
+  ChevronUp,
 } from "lucide-react"
-import { useMediaQuery } from "../../hooks/use-mobile"
+import { useMediaQuery } from "../../hooks/use-media-query"
+import { cn } from "../../lib/utils"
+import { SmoothOrientationControls } from "../../hooks/smooth-orientation-controls"
 
-// Preload the model
-useGLTF.preload('/models/person.glb');
-
-// Loading progress component
-const LoadingScreen = () => {
-  const { progress } = useProgress()
-  return (
-    (<Html center>
-      <div
-        className="flex flex-col items-center justify-center bg-black/80 p-6 rounded-lg text-white">
-        <div className="w-40 h-2 bg-gray-700 rounded-full mb-2 overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"
-            style={{ width: `${progress}%` }}></div>
-        </div>
-        <p className="text-sm">Loading VR Environment... {progress.toFixed(0)}%</p>
-      </div>
-    </Html>)
-  );
+// Realistic PBR Textures from public URLs
+const TEXTURE_URLS = {
+  // Wood textures
+  woodDark: {
+    map: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/wood_table_001/wood_table_001_diff_4k.jpg",
+    normalMap: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/wood_table_001/wood_table_001_nor_gl_4k.jpg",
+    roughnessMap: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/wood_table_001/wood_table_001_rough_4k.jpg",
+  },
+  woodLight: {
+    map: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/wood_planks_oak/wood_planks_oak_diff_4k.jpg",
+    normalMap: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/wood_planks_oak/wood_planks_oak_nor_gl_4k.jpg",
+    roughnessMap:
+      "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/wood_planks_oak/wood_planks_oak_rough_4k.jpg",
+  },
+  // Metal textures
+  metal: {
+    map: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/metal_plate/metal_plate_diff_4k.jpg",
+    normalMap: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/metal_plate/metal_plate_nor_gl_4k.jpg",
+    roughnessMap: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/metal_plate/metal_plate_rough_4k.jpg",
+    metalnessMap: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/metal_plate/metal_plate_metal_4k.jpg",
+  },
+  // Wall textures
+  wall: {
+    map: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/plaster_wall_02/plaster_wall_02_diff_4k.jpg",
+    normalMap: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/plaster_wall_02/plaster_wall_02_nor_gl_4k.jpg",
+    roughnessMap:
+      "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/plaster_wall_02/plaster_wall_02_rough_4k.jpg",
+  },
+  // Floor textures
+  floor: {
+    map: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/marble_01/marble_01_diff_4k.jpg",
+    normalMap: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/marble_01/marble_01_nor_gl_4k.jpg",
+    roughnessMap: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/marble_01/marble_01_rough_4k.jpg",
+  },
+  // Fabric textures
+  fabric: {
+    map: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/fabric_07/fabric_07_diff_4k.jpg",
+    normalMap: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/fabric_07/fabric_07_nor_gl_4k.jpg",
+    roughnessMap: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/fabric_07/fabric_07_rough_4k.jpg",
+  },
+  // Skin textures (stylized for avatars)
+  skin: {
+    map: "https://images.unsplash.com/photo-1560780552-ba54683cb263?q=80&w=1000&auto=format&fit=crop",
+  },
+  screen: {
+    map: "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/concrete_wall_007/concrete_wall_007_diff_4k.jpg",
+    normalMap:
+      "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/concrete_wall_007/concrete_wall_007_nor_gl_4k.jpg",
+    roughnessMap:
+      "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/concrete_wall_007/concrete_wall_007_rough_4k.jpg",
+  },
 }
 
-// Audience Member component using the provided GLB model
+// Environment HDRIs
+const ENVIRONMENT_HDRIS = {
+  conference: "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/conference_room_4k.hdr",
+  office: "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/office_afternoon_4k.hdr",
+  sunset: "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/sunset_fairway_4k.hdr",
+  night: "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/moonless_golf_4k.hdr",
+}
+
+// Textures loader with error handling and repeating
+const TexturedMaterial = ({ textureSet, color = 0xffffff, repeat = [1, 1], ...props }) => {
+  const textures = useTexture(
+    {
+      map: textureSet.map,
+      normalMap: textureSet.normalMap,
+      roughnessMap: textureSet.roughnessMap,
+      metalnessMap: textureSet.metalnessMap,
+      aoMap: textureSet.aoMap,
+    },
+    (textures) => {
+      // Configure all loaded textures
+      Object.values(textures).forEach((texture) => {
+        if (!texture) return
+        texture.wrapS = texture.wrapT = THREE.RepeatWrapping
+        texture.repeat.set(repeat[0], repeat[1])
+      })
+    },
+  )
+
+  // Filter out undefined textures
+  const validTextures = Object.fromEntries(Object.entries(textures).filter(([_, texture]) => texture !== undefined))
+
+  return <meshStandardMaterial color={color} {...validTextures} {...props} />
+}
+
+// Enhanced floor with realistic material
+const Floor = ({ color = "#ffffff", environmentPreset }) => {
+  const repeatScale = [8, 8]
+
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.51, 0]} receiveShadow>
+      <planeGeometry args={[100, 100]} />
+      <MeshReflectorMaterial
+        blur={[300, 100]}
+        resolution={1024}
+        mixBlur={1}
+        mixStrength={40}
+        roughness={1}
+        depthScale={1.2}
+        minDepthThreshold={0.4}
+        maxDepthThreshold={1.4}
+        color={color}
+        metalness={0.5}
+        mirror={0.5}
+      >
+        <TexturedMaterial textureSet={TEXTURE_URLS.floor} repeat={repeatScale} attach="material" />
+      </MeshReflectorMaterial>
+      <ContactShadows position={[0, 0, 0]} opacity={0.75} scale={100} blur={2} far={10} />
+    </mesh>
+  )
+}
+
+// Enhanced wall with texture
+const Wall = ({ position, rotation, size = [30, 10], color = "#f5f5f5" }) => {
+  const repeatScale = [4, 2]
+
+  return (
+    <mesh position={position} rotation={rotation} receiveShadow>
+      <planeGeometry args={size} />
+      <TexturedMaterial textureSet={TEXTURE_URLS.wall} color={color} repeat={repeatScale} />
+    </mesh>
+  )
+}
+
+// Enhanced audience member with better geometry and animations
 const AudienceMember = ({ position, emotion = "neutral", lookAt }) => {
   const modelRef = useRef()
+  const headRef = useRef()
+  const bodyRef = useRef()
   const [animationIndex, setAnimationIndex] = useState(0)
 
-  // Load the provided GLB model with error handling
-  const { scene, animations } = useGLTF("/models/person.glb", undefined, (error) => {
-    console.error("Error loading model:", error)
-  })
+  // Textures for different emotions
+  const textures = {
+    interested: "#88ccff",
+    bored: "#ffaa88",
+    challenging: "#ff8888",
+    friendly: "#88ff88",
+    neutral: "#cccccc",
+  }
 
-  // Clone the model to prevent sharing issues
-  const model = useMemo(() => {
-    if (scene) {
-      try {
-        return scene.clone(true);
-      } catch (e) {
-        console.error("Error cloning model:", e)
-        return createPlaceholderPerson(emotion);
-      }
-    }
-    return createPlaceholderPerson(emotion);
-  }, [scene, emotion])
-
-  // Set up animations if available
-  const { actions, mixer } = useAnimations(animations, modelRef)
-
+  // Set up the audience member with animation timing
   useEffect(() => {
-    // Set random animation timing
     setAnimationIndex(Math.floor(Math.random() * 3))
-
-    // Play a random animation if available
-    if (actions && Object.keys(actions).length > 0) {
-      const animationNames = Object.keys(actions)
-      const randomAnim = animationNames[Math.floor(Math.random() * animationNames.length)]
-      actions[randomAnim]?.play()
-    }
-
-    // Apply emotion color to the model
-    if (model) {
-      model.traverse((node) => {
-        if (node.isMesh && (node.name.includes("Head") || node.name.includes("Face"))) {
-          const material = node.material.clone()
-
-          // Apply subtle color tint based on emotion
-          switch (emotion) {
-            case "interested":
-              material.emissive = new THREE.Color("#0066ff")
-              material.emissiveIntensity = 0.2
-              break
-            case "bored":
-              material.emissive = new THREE.Color("#ff6600")
-              material.emissiveIntensity = 0.1
-              break
-            case "challenging":
-              material.emissive = new THREE.Color("#ff0000")
-              material.emissiveIntensity = 0.2
-              break
-            case "friendly":
-              material.emissive = new THREE.Color("#00ff00")
-              material.emissiveIntensity = 0.2
-              break
-            default:
-              material.emissive = new THREE.Color("#ffffff")
-              material.emissiveIntensity = 0.1
-          }
-
-          node.material = material
-        }
-      })
-    }
-
-    return () => {
-      // Clean up animations
-      if (mixer) {
-        mixer.stopAllAction()
-      }
-    };
-  }, [model, actions, mixer, emotion])
+  }, [])
 
   // Make audience members look at speaker and add subtle animations
   useFrame(({ clock }) => {
@@ -159,13 +208,34 @@ const AudienceMember = ({ position, emotion = "neutral", lookAt }) => {
 
       if (emotion === "interested" || emotion === "friendly") {
         // Nodding head movement
-        modelRef.current.rotation.x = Math.sin(time * 0.5 + offset) * 0.05
+        if (headRef.current) {
+          headRef.current.rotation.x = Math.sin(time * 0.5 + offset) * 0.05
+        }
+        // Subtle body movement
+        if (bodyRef.current) {
+          bodyRef.current.position.y = Math.sin(time * 0.3 + offset) * 0.02
+        }
       } else if (emotion === "bored") {
         // Slight swaying
         modelRef.current.rotation.z = Math.sin(time * 0.2 + offset) * 0.03
+        // Drooping head
+        if (headRef.current) {
+          headRef.current.rotation.x = Math.sin(time * 0.1 + offset) * 0.02 - 0.1
+        }
       } else if (emotion === "challenging") {
         // Head shaking
-        modelRef.current.rotation.y = Math.sin(time * 0.7 + offset) * 0.1 + modelRef.current.userData.baseRotationY
+        if (headRef.current) {
+          headRef.current.rotation.y = Math.sin(time * 0.7 + offset) * 0.1
+        }
+        // Arms crossing effect
+        if (bodyRef.current) {
+          bodyRef.current.rotation.x = Math.sin(time * 0.2 + offset) * 0.02
+        }
+      } else {
+        // Neutral idle animation
+        if (bodyRef.current) {
+          bodyRef.current.position.y = Math.sin(time * 0.2 + offset) * 0.01
+        }
       }
     }
   })
@@ -174,214 +244,422 @@ const AudienceMember = ({ position, emotion = "neutral", lookAt }) => {
   const randomScale = useMemo(() => 0.5 + (Math.random() * 0.1 - 0.05), [])
   const randomRotation = useMemo(() => Math.random() * 0.2 - 0.1, [])
 
-  useEffect(() => {
-    if (modelRef.current) {
-      modelRef.current.userData.baseRotationY = randomRotation
-    }
-  }, [randomRotation])
+  // Get color based on emotion
+  const getEmotionColor = () => textures[emotion] || textures.neutral
+
+  const bodyColor = ["#3a3a3a", "#2a2a2a", "#4a4a4a", "#5a5a5a"][Math.floor(Math.random() * 4)]
+  const headColor = getEmotionColor()
 
   return (
-    (<primitive
+    <group
       ref={modelRef}
-      object={model}
       position={position}
       rotation={[0, randomRotation, 0]}
       scale={[randomScale, randomScale, randomScale]}
-      castShadow />)
-  );
+    >
+      {/* Body */}
+      <group ref={bodyRef}>
+        <mesh castShadow position={[0, 0.6, 0]}>
+          <capsuleGeometry args={[0.2, 0.6, 8, 16]} />
+          <TexturedMaterial
+            textureSet={TEXTURE_URLS.fabric}
+            color={bodyColor}
+            roughness={0.6}
+            metalness={0.1}
+            repeat={[1, 1]}
+          />
+        </mesh>
+
+        {/* Arms */}
+        <mesh position={[-0.3, 0.6, 0]} castShadow>
+          <capsuleGeometry args={[0.07, 0.5, 8, 16]} />
+          <TexturedMaterial
+            textureSet={TEXTURE_URLS.fabric}
+            color={bodyColor}
+            roughness={0.6}
+            metalness={0.1}
+            repeat={[1, 1]}
+          />
+        </mesh>
+
+        <mesh position={[0.3, 0.6, 0]} castShadow>
+          <capsuleGeometry args={[0.07, 0.5, 8, 16]} />
+          <TexturedMaterial
+            textureSet={TEXTURE_URLS.fabric}
+            color={bodyColor}
+            roughness={0.6}
+            metalness={0.1}
+            repeat={[1, 1]}
+          />
+        </mesh>
+      </group>
+
+      {/* Head */}
+      <group ref={headRef} position={[0, 1.1, 0]}>
+        <mesh castShadow>
+          <sphereGeometry args={[0.2, 32, 32]} />
+          <meshStandardMaterial color={headColor} emissive={headColor} emissiveIntensity={0.1} roughness={0.4} />
+        </mesh>
+
+        {/* Eyes */}
+        <mesh position={[-0.08, 0.05, 0.15]} castShadow>
+          <sphereGeometry args={[0.03, 16, 16]} />
+          <meshStandardMaterial color="#ffffff" />
+          <mesh position={[0, 0, 0.02]}>
+            <sphereGeometry args={[0.015, 16, 16]} />
+            <meshStandardMaterial color="#000000" />
+          </mesh>
+        </mesh>
+
+        <mesh position={[0.08, 0.05, 0.15]} castShadow>
+          <sphereGeometry args={[0.03, 16, 16]} />
+          <meshStandardMaterial color="#ffffff" />
+          <mesh position={[0, 0, 0.02]}>
+            <sphereGeometry args={[0.015, 16, 16]} />
+            <meshStandardMaterial color="#000000" />
+          </mesh>
+        </mesh>
+
+        {/* Mouth - changes based on emotion */}
+        {emotion === "friendly" && (
+          <mesh position={[0, -0.08, 0.15]} rotation={[0.1, 0, 0]}>
+            <torusGeometry args={[0.05, 0.01, 16, 16, Math.PI]} />
+            <meshStandardMaterial color="#cc6666" />
+          </mesh>
+        )}
+
+        {emotion === "challenging" && (
+          <mesh position={[0, -0.08, 0.15]} rotation={[Math.PI + 0.1, 0, 0]}>
+            <torusGeometry args={[0.05, 0.01, 16, 16, Math.PI]} />
+            <meshStandardMaterial color="#cc6666" />
+          </mesh>
+        )}
+
+        {(emotion === "neutral" || emotion === "interested" || emotion === "bored") && (
+          <mesh position={[0, -0.08, 0.15]}>
+            <boxGeometry args={[0.07, 0.01, 0.01]} />
+            <meshStandardMaterial color="#cc6666" />
+          </mesh>
+        )}
+      </group>
+
+      {/* Emotion indicator - subtle glow */}
+      <pointLight position={[0, 1.1, 0]} distance={0.5} intensity={0.5} color={headColor} />
+    </group>
+  )
 }
 
-// Create a placeholder person model as fallback
-const createPlaceholderPerson = (emotion = "neutral") => {
-  const group = new THREE.Group()
-
-  // Body
-  const bodyColor = ["#3a3a3a", "#2a2a2a", "#4a4a4a", "#5a5a5a"][Math.floor(Math.random() * 4)]
-  const body = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.2, 0.6, 4, 8),
-    new THREE.MeshStandardMaterial({ color: bodyColor })
-  )
-  body.position.set(0, 0.6, 0)
-  group.add(body)
-
-  // Head
-  const headColor =
-    emotion === "friendly"
-      ? "#88ff88"
-      : emotion === "interested"
-        ? "#88ccff"
-        : emotion === "challenging"
-          ? "#ff8888"
-          : emotion === "bored"
-            ? "#ffaa88"
-            : "#cccccc"
-
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.2, 16, 16),
-    new THREE.MeshStandardMaterial({ color: headColor })
-  )
-  head.position.set(0, 1.1, 0)
-  group.add(head)
-
-  // Arms
-  const leftArm = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.07, 0.5, 4, 8),
-    new THREE.MeshStandardMaterial({ color: bodyColor })
-  )
-  leftArm.position.set(-0.3, 0.6, 0)
-  leftArm.rotation.z = Math.PI / 6
-  group.add(leftArm)
-
-  const rightArm = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.07, 0.5, 4, 8),
-    new THREE.MeshStandardMaterial({ color: bodyColor })
-  )
-  rightArm.position.set(0.3, 0.6, 0)
-  rightArm.rotation.z = -Math.PI / 6
-  group.add(rightArm)
-
-  return group
-}
-
-// Chair component for audience seating
+// Enhanced chair with better geometry and materials
 const Chair = ({ position }) => {
   return (
-    (<group position={position}>
+    <group position={position}>
       {/* Chair seat */}
       <mesh castShadow receiveShadow position={[0, 0.25, 0]}>
         <boxGeometry args={[0.6, 0.1, 0.6]} />
-        <meshStandardMaterial color="#331a00" roughness={0.9} />
+        <TexturedMaterial textureSet={TEXTURE_URLS.woodDark} color="#331a00" roughness={0.9} repeat={[0.5, 0.5]} />
       </mesh>
+
       {/* Chair back */}
       <mesh castShadow receiveShadow position={[0, 0.65, -0.25]}>
         <boxGeometry args={[0.6, 0.7, 0.1]} />
-        <meshStandardMaterial color="#331a00" roughness={0.9} />
+        <TexturedMaterial textureSet={TEXTURE_URLS.woodDark} color="#331a00" roughness={0.9} repeat={[0.5, 0.5]} />
       </mesh>
+
       {/* Chair legs */}
       <mesh castShadow position={[-0.25, 0.05, 0.25]}>
-        <cylinderGeometry args={[0.05, 0.05, 0.5, 8]} />
-        <meshStandardMaterial color="#222222" metalness={0.5} />
+        <cylinderGeometry args={[0.05, 0.05, 0.5, 16]} />
+        <TexturedMaterial
+          textureSet={TEXTURE_URLS.metal}
+          color="#222222"
+          metalness={0.8}
+          roughness={0.2}
+          repeat={[0.2, 0.2]}
+        />
       </mesh>
       <mesh castShadow position={[0.25, 0.05, 0.25]}>
-        <cylinderGeometry args={[0.05, 0.05, 0.5, 8]} />
-        <meshStandardMaterial color="#222222" metalness={0.5} />
+        <cylinderGeometry args={[0.05, 0.05, 0.5, 16]} />
+        <TexturedMaterial
+          textureSet={TEXTURE_URLS.metal}
+          color="#222222"
+          metalness={0.8}
+          roughness={0.2}
+          repeat={[0.2, 0.2]}
+        />
       </mesh>
       <mesh castShadow position={[-0.25, 0.05, -0.25]}>
-        <cylinderGeometry args={[0.05, 0.05, 0.5, 8]} />
-        <meshStandardMaterial color="#222222" metalness={0.5} />
+        <cylinderGeometry args={[0.05, 0.05, 0.5, 16]} />
+        <TexturedMaterial
+          textureSet={TEXTURE_URLS.metal}
+          color="#222222"
+          metalness={0.8}
+          roughness={0.2}
+          repeat={[0.2, 0.2]}
+        />
       </mesh>
       <mesh castShadow position={[0.25, 0.05, -0.25]}>
-        <cylinderGeometry args={[0.05, 0.05, 0.5, 8]} />
-        <meshStandardMaterial color="#222222" metalness={0.5} />
+        <cylinderGeometry args={[0.05, 0.05, 0.5, 16]} />
+        <TexturedMaterial
+          textureSet={TEXTURE_URLS.metal}
+          color="#222222"
+          metalness={0.8}
+          roughness={0.2}
+          repeat={[0.2, 0.2]}
+        />
       </mesh>
-    </group>)
-  );
+    </group>
+  )
 }
 
-// Speaker podium with microphone
+// Enhanced podium with better materials and details
 const Podium = () => {
   return (
-    (<group position={[0, -0.25, 0]}>
+    <group position={[0, -0.25, 0]}>
+      {/* Main podium body */}
       <mesh castShadow receiveShadow>
         <boxGeometry args={[1.4, 0.8, 0.8]} />
-        <meshStandardMaterial color="#8B4513" roughness={0.7} />
+        <TexturedMaterial textureSet={TEXTURE_URLS.woodDark} color="#8B4513" roughness={0.7} repeat={[1, 0.5]} />
       </mesh>
+
       {/* Decorative trim on podium */}
       <mesh position={[0, 0.41, 0]} castShadow>
         <boxGeometry args={[1.5, 0.02, 0.9]} />
-        <meshStandardMaterial color="#d4af37" metalness={0.7} roughness={0.3} />
+        <TexturedMaterial
+          textureSet={TEXTURE_URLS.metal}
+          color="#d4af37"
+          metalness={0.9}
+          roughness={0.1}
+          repeat={[2, 0.1]}
+        />
       </mesh>
+
+      {/* Podium front panel with texture */}
+      <mesh position={[0, 0, 0.41]} castShadow>
+        <planeGeometry args={[1.3, 0.7]} />
+        <TexturedMaterial textureSet={TEXTURE_URLS.woodLight} color="#6B3E26" roughness={0.6} repeat={[1, 0.5]} />
+      </mesh>
+
       {/* Microphone */}
       <group position={[0, 0.41, 0.3]}>
         <mesh castShadow>
-          <cylinderGeometry args={[0.01, 0.01, 0.5, 8]} />
-          <meshStandardMaterial color="#111111" metalness={0.8} />
+          <cylinderGeometry args={[0.01, 0.01, 0.5, 16]} />
+          <TexturedMaterial
+            textureSet={TEXTURE_URLS.metal}
+            color="#111111"
+            metalness={0.9}
+            roughness={0.1}
+            repeat={[0.2, 1]}
+          />
         </mesh>
         <mesh position={[0, 0.3, 0]} castShadow>
-          <sphereGeometry args={[0.03, 16, 16]} />
-          <meshStandardMaterial color="#222222" metalness={0.9} />
+          <sphereGeometry args={[0.03, 32, 32]} />
+          <TexturedMaterial
+            textureSet={TEXTURE_URLS.metal}
+            color="#222222"
+            metalness={0.9}
+            roughness={0.1}
+            repeat={[0.1, 0.1]}
+          />
         </mesh>
       </group>
-    </group>)
-  );
+    </group>
+  )
 }
 
-// Speaker avatar (visible representation of the user)
-const SpeakerAvatar = ({ recording }) => {
+// Enhanced speaker avatar with better animations and materials
+const SpeakerAvatar = ({ recording, speakerColor = "#2a4a8a" }) => {
   const ref = useRef()
+  const headRef = useRef()
+  const leftArmRef = useRef()
+  const rightArmRef = useRef()
 
   // Animate the speaker when recording
   useFrame(({ clock }) => {
     if (ref.current && recording) {
       const t = clock.getElapsedTime()
+
       // Subtle speaking animation
       ref.current.rotation.y = Math.sin(t * 0.5) * 0.1
       ref.current.position.y = Math.sin(t * 2) * 0.02 + 0.7
+
+      // Head movement
+      if (headRef.current) {
+        headRef.current.rotation.x = Math.sin(t * 1.5) * 0.05
+        headRef.current.rotation.y = Math.sin(t * 0.7) * 0.1
+      }
+
+      // Arm gestures
+      if (leftArmRef.current) {
+        leftArmRef.current.rotation.x = Math.sin(t * 0.8) * 0.2
+        leftArmRef.current.rotation.z = Math.PI / 6 + Math.sin(t * 0.5) * 0.1
+      }
+
+      if (rightArmRef.current) {
+        rightArmRef.current.rotation.x = Math.sin(t * 0.8 + 1) * 0.3
+        rightArmRef.current.rotation.z = -Math.PI / 6 + Math.sin(t * 0.5 + 1) * 0.15
+      }
     }
   })
 
   return (
-    (<group position={[0, 0.7, 0]} ref={ref}>
+    <group position={[0, 0.7, 0]} ref={ref}>
       {/* Speaker body */}
       <mesh castShadow>
-        <capsuleGeometry args={[0.25, 0.7, 8, 16]} />
-        <meshStandardMaterial color="#2a4a8a" />
+        <capsuleGeometry args={[0.25, 0.7, 16, 32]} />
+        <TexturedMaterial textureSet={TEXTURE_URLS.fabric} color={speakerColor} roughness={0.7} repeat={[1, 1]} />
       </mesh>
+
       {/* Speaker head */}
-      <mesh position={[0, 0.6, 0]} castShadow>
-        <sphereGeometry args={[0.25, 16, 16]} />
-        <meshStandardMaterial color="#e0c080" />
-      </mesh>
+      <group ref={headRef} position={[0, 0.6, 0]}>
+        <mesh castShadow>
+          <sphereGeometry args={[0.25, 32, 32]} />
+          <TexturedMaterial textureSet={TEXTURE_URLS.skin} color="#e0c080" roughness={0.5} repeat={[1, 1]} />
+        </mesh>
+
+        {/* Eyes */}
+        <mesh position={[-0.08, 0.05, 0.2]} castShadow>
+          <sphereGeometry args={[0.04, 32, 32]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.1} />
+          <mesh position={[0, 0, 0.03]}>
+            <sphereGeometry args={[0.02, 32, 32]} />
+            <meshStandardMaterial color="#000000" />
+          </mesh>
+        </mesh>
+
+        <mesh position={[0.08, 0.05, 0.2]} castShadow>
+          <sphereGeometry args={[0.04, 32, 32]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.1} />
+          <mesh position={[0, 0, 0.03]}>
+            <sphereGeometry args={[0.02, 32, 32]} />
+            <meshStandardMaterial color="#000000" />
+          </mesh>
+        </mesh>
+
+        {/* Mouth - changes when speaking */}
+        <mesh position={[0, -0.1, 0.2]} castShadow>
+          <boxGeometry args={[0.1, recording ? 0.05 : 0.02, 0.01]} />
+          <meshStandardMaterial color="#cc6666" />
+        </mesh>
+
+        {/* Hair */}
+        <mesh position={[0, 0.1, 0]} castShadow>
+          <sphereGeometry args={[0.26, 32, 32, 0, Math.PI * 2, 0, Math.PI / 2]} />
+          <meshStandardMaterial color="#5a3a1a" roughness={0.9} />
+        </mesh>
+      </group>
+
       {/* Arms */}
       <group position={[0, 0.2, 0]}>
         {/* Left arm */}
-        <mesh position={[-0.35, 0, 0]} castShadow>
-          <capsuleGeometry args={[0.08, 0.5, 8, 16]} />
-          <meshStandardMaterial color="#2a4a8a" />
+        <mesh ref={leftArmRef} position={[-0.35, 0, 0]} castShadow>
+          <capsuleGeometry args={[0.08, 0.5, 16, 32]} />
+          <TexturedMaterial textureSet={TEXTURE_URLS.fabric} color={speakerColor} roughness={0.7} repeat={[1, 1]} />
         </mesh>
 
         {/* Right arm */}
-        <mesh position={[0.35, 0, 0]} castShadow>
-          <capsuleGeometry args={[0.08, 0.5, 8, 16]} />
-          <meshStandardMaterial color="#2a4a8a" />
+        <mesh ref={rightArmRef} position={[0.35, 0, 0]} castShadow>
+          <capsuleGeometry args={[0.08, 0.5, 16, 32]} />
+          <TexturedMaterial textureSet={TEXTURE_URLS.fabric} color={speakerColor} roughness={0.7} repeat={[1, 1]} />
         </mesh>
       </group>
+
       {/* Recording indicator */}
-      {recording && <pointLight position={[0, 0.6, 0.3]} distance={0.5} intensity={2} color="red" />}
-    </group>)
-  );
+      {recording && (
+        <>
+          <pointLight position={[0, 0.6, 0.3]} distance={0.5} intensity={2} color="red" />
+          <Sparkles count={10} scale={1} size={0.5} speed={0.5} color="red" position={[0, 0.8, 0]} />
+        </>
+      )}
+    </group>
+  )
 }
 
-// Presentation screen component
-const PresentationScreen = ({ topic }) => {
+// Enhanced presentation screen with better materials
+const PresentationScreen = ({ topic, notes = [] }) => {
+  const screenRef = useRef()
+
+  // Add subtle animation to the screen
+  useFrame(({ clock }) => {
+    if (screenRef.current) {
+      const t = clock.getElapsedTime()
+      screenRef.current.material.emissiveIntensity = 0.1 + Math.sin(t * 0.5) * 0.05
+    }
+  })
+
   return (
-    (<group position={[0, 2.5, -9.8]}>
+    <group position={[0, 2.5, -9.8]}>
+      {/* Screen frame */}
       <mesh castShadow receiveShadow>
-        <boxGeometry args={[12, 6, 0.1]} />
-        <meshStandardMaterial color="#333333" />
+        <boxGeometry args={[12.2, 6.2, 0.2]} />
+        <TexturedMaterial
+          textureSet={TEXTURE_URLS.metal}
+          color="#222222"
+          metalness={0.7}
+          roughness={0.3}
+          repeat={[5, 2]}
+        />
       </mesh>
-      <mesh position={[0, 0, 0.06]}>
-        <planeGeometry args={[11.5, 5.5]} />
-        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.1} />
+
+      {/* Screen surface */}
+      <mesh ref={screenRef} position={[0, 0, 0.11]}>
+        <planeGeometry args={[12, 6]} />
+        <TexturedMaterial
+          textureSet={TEXTURE_URLS.screen}
+          color="#ffffff"
+          emissive="#ffffff"
+          emissiveIntensity={0.1}
+          roughness={0.1}
+          repeat={[3, 1.5]}
+        />
       </mesh>
+
       {/* Display the speech topic on the screen */}
       {topic && (
-        <Text
-          position={[0, 0, 0.07]}
-          fontSize={0.5}
-          color="#000000"
-          anchorX="center"
-          anchorY="middle"
-          maxWidth={10}>
-          {topic}
-        </Text>
+        <>
+          <Text
+            position={[0, 2, 0.15]}
+            fontSize={0.6}
+            color="#000000"
+            anchorX="center"
+            anchorY="middle"
+            maxWidth={10}
+            font="/fonts/Geist-Bold.ttf"
+          >
+            {topic}
+          </Text>
+
+          {/* Divider line */}
+          <mesh position={[0, 1.5, 0.15]}>
+            <boxGeometry args={[8, 0.05, 0.01]} />
+            <meshStandardMaterial color="#333333" />
+          </mesh>
+
+          {/* Display bullet points if available */}
+          {notes.length > 0 && (
+            <group position={[0, 0, 0.15]}>
+              {notes.map((note, index) => (
+                <Text
+                  key={index}
+                  position={[-4.5, 1 - index * 0.7, 0]}
+                  fontSize={0.4}
+                  color="#000000"
+                  anchorX="left"
+                  anchorY="middle"
+                  maxWidth={9}
+                  font="/fonts/Geist-Regular.ttf"
+                >
+                  • {note}
+                </Text>
+              ))}
+            </group>
+          )}
+        </>
       )}
-    </group>)
-  );
+    </group>
+  )
 }
 
-// Speech timer display in 3D space
-const SpeechTimer = ({ duration, position = [0, 2, -3], visible }) => {
+// Enhanced speech timer with better visuals
+const SpeechTimer = ({ duration, position = [0, 2, -3], visible, warningTime = 30 }) => {
   if (!visible) return null
 
   // Format time as MM:SS
@@ -389,24 +667,123 @@ const SpeechTimer = ({ duration, position = [0, 2, -3], visible }) => {
   const seconds = duration % 60
   const timeString = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
 
+  // Change color based on remaining time
+  const isWarning = duration >= warningTime
+  const color = isWarning ? "#ff3333" : "white"
+  const pulseIntensity = isWarning ? 1.5 : 0.5
+
   return (
-    (<Float speed={2} rotationIntensity={0.2} floatIntensity={0.5}>
-      <Text
-        position={position}
-        fontSize={0.5}
-        color="white"
-        anchorX="center"
-        anchorY="middle"
-        backgroundColor="#00000080"
-        padding={0.2}>
-        {timeString}
-      </Text>
-    </Float>)
-  );
+    <Float speed={2} rotationIntensity={0.2} floatIntensity={pulseIntensity}>
+      <group position={position}>
+        <Text
+          fontSize={0.5}
+          color={color}
+          anchorX="center"
+          anchorY="middle"
+          backgroundColor="#00000080"
+          padding={0.2}
+          font="/fonts/GeistMono-Bold.ttf"
+        >
+          {timeString}
+        </Text>
+        {isWarning && <pointLight color="#ff0000" intensity={0.8} distance={2} />}
+      </group>
+    </Float>
+  )
 }
 
-// Virtual Room setup with improved audience distribution
-const VirtualRoom = ({ audienceSize, audienceMood, environmentPreset, speechTopic, recording }) => {
+// VR stereo effect renderer for a true VR mode
+const StereoEffect = ({ children, active }) => {
+  const { gl, camera, size } = useThree()
+  const [sceneL] = useState(() => new THREE.Scene())
+  const [sceneR] = useState(() => new THREE.Scene())
+
+  const [renderTarget] = useState(
+    () =>
+      new THREE.WebGLRenderTarget(size.width / 2, size.height, {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.NearestFilter,
+        encoding: gl.outputEncoding,
+      }),
+  )
+
+  // Clone camera for left and right eyes
+  const cameraL = useMemo(() => camera.clone(), [camera])
+  const cameraR = useMemo(() => camera.clone(), [camera])
+
+  useEffect(() => {
+    return () => {
+      renderTarget.dispose()
+    }
+  }, [renderTarget])
+
+  useFrame(() => {
+    if (!active) return
+
+    // Set camera eye separation for 3D effect
+    const eyeSep = 0.064 // average human eye separation in meters
+
+    // Calculate projection matrices for left and right eyes
+    const projMatrixL = camera.projectionMatrix.clone()
+    const projMatrixR = camera.projectionMatrix.clone()
+
+    // Create camera matrices for left and right eyes
+    const eyeRight = new THREE.Vector3()
+    const eyeLeft = new THREE.Vector3()
+    const eyeUp = new THREE.Vector3()
+    const eyeForward = new THREE.Vector3()
+
+    camera.matrixWorld.extractBasis(eyeRight, eyeUp, eyeForward)
+    eyeRight.multiplyScalar(eyeSep / 2)
+    eyeLeft.copy(eyeRight).negate()
+
+    // Apply eye separation to camera positions
+    cameraL.position.copy(camera.position).add(eyeLeft)
+    cameraR.position.copy(camera.position).add(eyeRight)
+
+    cameraL.quaternion.copy(camera.quaternion)
+    cameraR.quaternion.copy(camera.quaternion)
+
+    cameraL.projectionMatrix.copy(projMatrixL)
+    cameraR.projectionMatrix.copy(projMatrixR)
+
+    // Render left eye view
+    gl.setViewport(0, 0, size.width / 2, size.height)
+    gl.setScissor(0, 0, size.width / 2, size.height)
+    gl.setScissorTest(true)
+    gl.render(sceneL, cameraL)
+
+    // Render right eye view
+    gl.setViewport(size.width / 2, 0, size.width / 2, size.height)
+    gl.setScissor(size.width / 2, 0, size.width / 2, size.height)
+    gl.setScissorTest(true)
+    gl.render(sceneR, cameraR)
+  }, 1)
+
+  return active ? (
+    <>
+      <scene
+        ref={(el) => {
+          if (el) Object.assign(sceneL, el)
+        }}
+      >
+        {children}
+      </scene>
+      <scene
+        ref={(el) => {
+          if (el) Object.assign(sceneR, el)
+        }}
+      >
+        {children}
+      </scene>
+    </>
+  ) : (
+    children
+  )
+}
+
+// Enhanced virtual room with better audience distribution and materials
+const VirtualRoom = ({ audienceSize, audienceMood, environmentPreset, speechTopic, recording, speechNotes = [] }) => {
   // Calculate audience positions
   const positions = useMemo(() => {
     const pos = []
@@ -448,77 +825,10 @@ const VirtualRoom = ({ audienceSize, audienceMood, environmentPreset, speechTopi
         } else {
           return ["neutral", "interested", "bored"][i % 3]
         }
-      });
+      })
   }, [audienceSize, audienceMood])
 
   // Determine floor and wall textures based on environment
-  const getTextureUrl = () => {
-    switch (environmentPreset) {
-      case "city":
-        return "https://images.unsplash.com/photo-1541451378359-acdede43fdf4?w=800&auto=format&fit=crop"
-      case "sunset":
-        return "https://images.unsplash.com/photo-1604147706283-d7119b5b822c?w=800&auto=format&fit=crop"
-      case "night":
-        return "https://images.unsplash.com/photo-1604147495798-57beb5d6af73?w=800&auto=format&fit=crop"
-      case "dawn":
-      default:
-        return "https://images.unsplash.com/photo-1567016432779-094069958ea5?w=800&auto=format&fit=crop"
-    }
-  }
-
-  // Load textures with error handling
-  const textureUrl = getTextureUrl()
-  const [floorTexture, setFloorTexture] = useState(null)
-  const [wallTexture, setWallTexture] = useState(null)
-
-  useEffect(() => {
-    const loader = new THREE.TextureLoader()
-
-    // Load floor texture
-    loader.load(textureUrl, (texture) => {
-      texture.wrapS = texture.wrapT = THREE.RepeatWrapping
-      texture.repeat.set(10, 10)
-      setFloorTexture(texture)
-    }, undefined, (error) => {
-      console.error("Error loading floor texture:", error)
-      // Create a fallback texture
-      const canvas = document.createElement("canvas")
-      canvas.width = canvas.height = 128
-      const context = canvas.getContext("2d")
-      context.fillStyle = "#ddc9a3"
-      context.fillRect(0, 0, 128, 128)
-      const fallbackTexture = new THREE.CanvasTexture(canvas)
-      fallbackTexture.wrapS = fallbackTexture.wrapT = THREE.RepeatWrapping
-      fallbackTexture.repeat.set(10, 10)
-      setFloorTexture(fallbackTexture)
-    })
-
-    // Load wall texture
-    loader.load(textureUrl, (texture) => {
-      texture.wrapS = texture.wrapT = THREE.RepeatWrapping
-      texture.repeat.set(5, 2)
-      setWallTexture(texture)
-    }, undefined, (error) => {
-      console.error("Error loading wall texture:", error)
-      // Create a fallback texture
-      const canvas = document.createElement("canvas")
-      canvas.width = canvas.height = 128
-      const context = canvas.getContext("2d")
-      context.fillStyle = "#f5f5f5"
-      context.fillRect(0, 0, 128, 128)
-      const fallbackTexture = new THREE.CanvasTexture(canvas)
-      fallbackTexture.wrapS = fallbackTexture.wrapT = THREE.RepeatWrapping
-      fallbackTexture.repeat.set(5, 2)
-      setWallTexture(fallbackTexture)
-    })
-
-    return () => {
-      if (floorTexture) floorTexture.dispose()
-      if (wallTexture) wallTexture.dispose()
-    };
-  }, [textureUrl])
-
-  // Get floor and wall colors based on environment
   const getColors = () => {
     switch (environmentPreset) {
       case "city":
@@ -535,182 +845,104 @@ const VirtualRoom = ({ audienceSize, audienceMood, environmentPreset, speechTopi
 
   const colors = getColors()
 
-  return (<>
-    {/* Improved lighting */}
-    <ambientLight intensity={0.4} />
-    <directionalLight
-      position={[5, 8, 5]}
-      intensity={0.8}
-      castShadow
-      shadow-mapSize-width={2048}
-      shadow-mapSize-height={2048}
-      shadow-camera-far={50}
-      shadow-camera-left={-10}
-      shadow-camera-right={10}
-      shadow-camera-top={10}
-      shadow-camera-bottom={-10} />
-    <pointLight position={[0, 5, 0]} intensity={0.5} color="#ffffff" />
-    {/* Enhanced room environment */}
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.51, 0]} receiveShadow>
-      <planeGeometry args={[30, 30]} />
-      <meshStandardMaterial map={floorTexture} color={colors.floor} roughness={0.8} metalness={0.2} />
-    </mesh>
-    {/* Improved walls with textures */}
-    <mesh position={[0, 4, -10]} rotation={[0, 0, 0]} receiveShadow>
-      <planeGeometry args={[30, 10]} />
-      <meshStandardMaterial map={wallTexture} color={colors.wall} roughness={0.7} />
-    </mesh>
-    <mesh position={[-15, 4, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
-      <planeGeometry args={[20, 10]} />
-      <meshStandardMaterial map={wallTexture} color={colors.wall} roughness={0.7} />
-    </mesh>
-    <mesh position={[15, 4, 0]} rotation={[0, -Math.PI / 2, 0]} receiveShadow>
-      <planeGeometry args={[20, 10]} />
-      <meshStandardMaterial map={wallTexture} color={colors.wall} roughness={0.7} />
-    </mesh>
-    {/* Enhanced podium */}
-    <Podium />
-    {/* Speaker avatar (you) */}
-    <SpeakerAvatar recording={recording} />
-    {/* Presentation screen */}
-    <PresentationScreen topic={speechTopic} />
-    {/* Side lights for ambiance */}
-    <pointLight position={[-8, 4, -5]} intensity={0.3} color="#ffaa77" />
-    <pointLight position={[8, 4, -5]} intensity={0.3} color="#ffaa77" />
-    {/* Enhanced audience chairs */}
-    {positions.map((pos, index) => (
-      <Chair key={`chair-${index}`} position={[pos[0], -0.3, pos[2]]} />
-    ))}
-    {/* Audience */}
-    <Suspense fallback={null}>
+  return (
+    <>
+      {/* Improved lighting */}
+      <ambientLight intensity={0.4} />
+      <directionalLight
+        position={[5, 8, 5]}
+        intensity={0.8}
+        castShadow
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-camera-far={50}
+        shadow-camera-left={-10}
+        shadow-camera-right={10}
+        shadow-camera-top={10}
+        shadow-camera-bottom={-10}
+      />
+      <pointLight position={[0, 5, 0]} intensity={0.5} color="#ffffff" />
+
+      {/* Enhanced room environment */}
+      <Floor color={colors.floor} environmentPreset={environmentPreset} />
+
+      {/* Improved walls */}
+      <Wall position={[0, 4, -10]} rotation={[0, 0, 0]} color={colors.wall} />
+      <Wall position={[-15, 4, 0]} rotation={[0, Math.PI / 2, 0]} color={colors.wall} />
+      <Wall position={[15, 4, 0]} rotation={[0, -Math.PI / 2, 0]} color={colors.wall} />
+
+      {/* Enhanced podium */}
+      <Podium />
+
+      {/* Speaker avatar (you) */}
+      <SpeakerAvatar recording={recording} />
+
+      {/* Presentation screen */}
+      <PresentationScreen topic={speechTopic} notes={speechNotes} />
+
+      {/* Side lights for ambiance */}
+      <pointLight position={[-8, 4, -5]} intensity={0.3} color="#ffaa77" />
+      <pointLight position={[8, 4, -5]} intensity={0.3} color="#ffaa77" />
+
+      {/* Enhanced audience chairs and people */}
+      {positions.map((pos, index) => (
+        <Chair key={`chair-${index}`} position={[pos[0], -0.3, pos[2]]} />
+      ))}
+
       {positions.map((pos, index) => (
         <AudienceMember
           key={`person-${index}`}
           position={[pos[0], 0.2, pos[2]]}
           emotion={emotions[index]}
-          lookAt={new THREE.Vector3(0, 1, 0)} />
+          lookAt={new THREE.Vector3(0, 1, 0)}
+        />
       ))}
-    </Suspense>
-    {/* Environment-specific decorations */}
-    {environmentPreset === "night" && (
-      <Stars
-        radius={100}
-        depth={50}
-        count={5000}
-        factor={4}
-        saturation={0}
-        fade
-        speed={1} />
-    )}
-    {environmentPreset === "sunset" && <Cloud position={[-10, 10, -15]} speed={0.2} opacity={0.5} />}
-    {environmentPreset === "dawn" && <Sparkles count={50} scale={20} size={2} speed={0.3} opacity={0.5} />}
-    {/* Add subtle camera shake when recording to simulate real speech */}
-    {recording && (
-      <CameraShake
-        maxYaw={0.01}
-        maxPitch={0.01}
-        maxRoll={0.01}
-        yawFrequency={0.5}
-        pitchFrequency={0.4}
-        rollFrequency={0.3} />
-    )}
-  </>);
+
+      {/* Environment-specific decorations */}
+      {environmentPreset === "night" && (
+        <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+      )}
+      {environmentPreset === "sunset" && <pointLight position={[-20, 10, -10]} intensity={1.5} color="#ff7700" />}
+      {environmentPreset === "dawn" && <Sparkles count={50} scale={20} size={2} speed={0.3} opacity={0.5} />}
+    </>
+  )
 }
 
-// Environment renderer based on preset
-const EnvironmentRenderer = ({ preset }) => {
-  switch (preset) {
-    case "city": // Conference Room
-      return (<>
-        <color attach="background" args={["#101020"]} />
-        <fog attach="fog" args={["#101020", 5, 30]} />
-        <Environment preset="city" background={false} />
-      </>);
-    case "dawn": // Auditorium
-      return (<>
-        <color attach="background" args={["#202040"]} />
-        <fog attach="fog" args={["#202040", 5, 30]} />
-        <Environment preset="dawn" background={false} />
-        <directionalLight position={[5, 8, 5]} intensity={0.3} castShadow />
-      </>);
-    case "sunset": // Outdoor Event
-      return (<>
-        <color attach="background" args={["#381c1c"]} />
-        <fog attach="fog" args={["#381c1c", 8, 30]} />
-        <Sky sunPosition={[100, 10, 100]} turbidity={10} rayleigh={0.5} />
-        <Environment preset="sunset" background={false} />
-        <directionalLight position={[10, 5, 5]} intensity={1} color="#ff9966" castShadow />
-      </>);
-    case "night": // Evening Reception
-      return (<>
-        <color attach="background" args={["#020209"]} />
-        <fog attach="fog" args={["#020209", 5, 25]} />
-        <Environment preset="night" background={false} />
-        <pointLight position={[0, 5, 0]} intensity={0.6} color="#7777ff" />
-        <pointLight position={[-5, 2, -5]} intensity={0.4} color="#ff77ff" />
-        <pointLight position={[5, 2, -5]} intensity={0.4} color="#77ffff" />
-      </>);
-    default:
-      return <Environment preset="dawn" background={false} />;
-  }
-}
-
-// Camera controller component
+// Enhanced camera controller with smoother transitions
 const CameraController = ({ position, target, enableRotation }) => {
   const { camera } = useThree()
+  const currentPos = useRef(new THREE.Vector3())
+  const currentTarget = useRef(new THREE.Vector3())
 
   useEffect(() => {
-    camera.position.set(position.x, position.y, position.z)
-    camera.lookAt(target.x, target.y, target.z)
-  }, [camera, position, target])
+    currentPos.current.copy(camera.position)
+    currentTarget.current.copy(new THREE.Vector3(target.x, target.y, target.z))
+  }, [camera, target])
+
+  useFrame(() => {
+    if (!enableRotation) {
+      // Smooth camera position transition - improved lerp factor
+      currentPos.current.lerp(new THREE.Vector3(position.x, position.y, position.z), 0.05)
+      camera.position.copy(currentPos.current)
+
+      // Smooth target transition
+      currentTarget.current.lerp(new THREE.Vector3(target.x, target.y, target.z), 0.05)
+      camera.lookAt(currentTarget.current)
+    }
+  })
 
   return null
 }
 
-// Mobile orientation detector
-const MobileOrientationController = ({ onOrientationChange }) => {
-  useEffect(() => {
-    const handleOrientation = (event) => {
-      // Get device orientation data
-      const beta = event.beta // X-axis rotation (-180 to 180)
-      const gamma = event.gamma // Y-axis rotation (-90 to 90)
-
-      // Only use reasonable values
-      if (beta !== null && gamma !== null) {
-        // Convert orientation to camera position
-        // Limit the range to avoid extreme movements
-        const betaLimited = Math.max(-45, Math.min(45, beta)) / 45
-        const gammaLimited = Math.max(-45, Math.min(45, gamma)) / 45
-
-        // Calculate new camera position based on device orientation
-        onOrientationChange({
-          x: gammaLimited * 5, // Left-right movement
-          y: 1.5 - betaLimited * 0.5, // Up-down movement
-          z: 5 - Math.abs(betaLimited) * 2, // Forward-backward movement
-        })
-      }
-    }
-
-    // Add event listener for device orientation
-    if (window.DeviceOrientationEvent) {
-      window.addEventListener("deviceorientation", handleOrientation)
-    }
-
-    return () => {
-      window.removeEventListener("deviceorientation", handleOrientation)
-    };
-  }, [onOrientationChange])
-
-  return null
-}
-
-// Main component
+// Main component with improved UI and controls
 const VRSpeechTrainer = () => {
+  // State management
   const [recording, setRecording] = useState(false)
   const [feedback, setFeedback] = useState(null)
   const [audienceSize, setAudienceSize] = useState(10)
   const [audienceMood, setAudienceMood] = useState("neutral")
   const [speechTopic, setSpeechTopic] = useState("")
+  const [speechNotes, setSpeechNotes] = useState([])
   const [speechDuration, setSpeechDuration] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showStats, setShowStats] = useState(false)
@@ -722,14 +954,20 @@ const VRSpeechTrainer = () => {
   const [showControls, setShowControls] = useState(true)
   const [enableOrbitControls, setEnableOrbitControls] = useState(true)
   const [viewMode, setViewMode] = useState("audience") // 'audience', 'speaker', 'top'
+  const [vrMode, setVrMode] = useState(false)
+  const [speakerColor, setSpeakerColor] = useState("#2a4a8a")
+  const [controlsPosition, setControlsPosition] = useState("side") // 'side', 'bottom', 'hidden'
+
+  // Refs
   const intervalRef = useRef(null)
   const canvasRef = useRef()
   const audioRef = useRef(null)
+  const notesInputRef = useRef(null)
 
   // Check if device is mobile
   const isMobile = useMediaQuery("(max-width: 768px)")
 
-  // Handle mobile orientation changes
+  // Handle mobile orientation changes with improved sensitivity
   const handleOrientationChange = (newPosition) => {
     if (isMobile && !enableOrbitControls) {
       setCameraPosition((prev) => ({
@@ -740,9 +978,9 @@ const VRSpeechTrainer = () => {
     }
   }
 
-  // Play ambient sound
+  // Play ambient sound with better error handling
   useEffect(() => {
-    // Create audio element for ambient sound
+    // Use an online ambient sound source
     const audio = new Audio("https://freesound.org/data/previews/417/417486_5121236-lq.mp3")
     audio.loop = true
     audio.volume = 0.2
@@ -755,7 +993,7 @@ const VRSpeechTrainer = () => {
     return () => {
       audio.pause()
       audio.src = ""
-    };
+    }
   }, [])
 
   // Update audio mute state
@@ -784,6 +1022,16 @@ const VRSpeechTrainer = () => {
     // Switch to speaker view when starting
     setViewMode("speaker")
     updateCameraForViewMode("speaker")
+
+    // Hide controls on mobile when recording
+    if (isMobile) {
+      setControlsPosition("hidden")
+    }
+
+    // Vibrate device if supported (for mobile)
+    if (navigator.vibrate) {
+      navigator.vibrate(200)
+    }
   }
 
   // End speech, clear timer, and generate feedback
@@ -794,6 +1042,16 @@ const VRSpeechTrainer = () => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
       intervalRef.current = null
+    }
+
+    // Show controls again
+    if (isMobile) {
+      setControlsPosition("bottom")
+    }
+
+    // Vibrate device if supported (for mobile)
+    if (navigator.vibrate) {
+      navigator.vibrate([100, 50, 100])
     }
 
     // Generate more detailed AI feedback based on current settings
@@ -809,14 +1067,14 @@ const VRSpeechTrainer = () => {
       setFeedback({
         pacing: Math.min(100, Math.max(50, 75 + moodFactor)),
         clarity: Math.min(100, Math.max(50, clarityBase + audienceFactor)),
-        confidence: Math.min(100, Math.max(50, confidenceBase + moodFactor + audienceFactor)),
-        eyeContact: Math.min(100, Math.max(50, 70 + (audienceSize > 10 ? -10 : 0))),
+        confidence: Math.min(100, Math.max(50, confidenceBase + moodFactor)),
+        eyeContact: Math.min(100, Math.max(50, 70 + audienceFactor + moodFactor)),
         tips: [
-          audienceSize > 10
-            ? "Try to scan the entire audience - you missed engaging with people on the sides"
-            : "Good job making eye contact across the audience",
           speechDuration < 60
-            ? "Your speech was quite brief - consider developing your points more fully"
+            ? "Try to speak for at least 1-2 minutes to fully develop your ideas"
+            : "Good speech length, allowing you to cover your topic thoroughly",
+          audienceMood === "friendly"
+            ? "You connected well with the friendly audience"
             : "Your pacing was appropriate for the content",
           audienceMood === "challenging"
             ? "You handled challenging audience reactions well"
@@ -866,7 +1124,7 @@ const VRSpeechTrainer = () => {
     }
   }
 
-  // Update camera position based on view mode
+  // Update camera position based on view mode with smoother transitions
   const updateCameraForViewMode = (mode) => {
     switch (mode) {
       case "speaker":
@@ -887,10 +1145,50 @@ const VRSpeechTrainer = () => {
     }
   }
 
-  // Change view mode
+  // Change view mode with improved transitions
   const changeViewMode = (mode) => {
     setViewMode(mode)
     updateCameraForViewMode(mode)
+  }
+
+  // Toggle VR mode with improved settings
+  const toggleVRMode = () => {
+    setVrMode(!vrMode)
+
+    // When entering VR mode, go to fullscreen and hide controls
+    if (!vrMode) {
+      if (!isFullscreen) {
+        toggleFullscreen()
+      }
+      setControlsPosition("hidden")
+      setEnableOrbitControls(false)
+
+      // Force landscape mode for VR if possible
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock("landscape").catch((e) => console.error("Could not lock orientation", e))
+      }
+    } else {
+      setControlsPosition(isMobile ? "bottom" : "side")
+      setEnableOrbitControls(true)
+
+      // Unlock orientation
+      if (screen.orientation && screen.orientation.unlock) {
+        screen.orientation.unlock()
+      }
+    }
+  }
+
+  // Add speech note
+  const addSpeechNote = () => {
+    if (notesInputRef.current && notesInputRef.current.value.trim()) {
+      setSpeechNotes((prev) => [...prev, notesInputRef.current.value.trim()])
+      notesInputRef.current.value = ""
+    }
+  }
+
+  // Remove speech note
+  const removeSpeechNote = (index) => {
+    setSpeechNotes((prev) => prev.filter((_, i) => i !== index))
   }
 
   // Save session as a report
@@ -903,6 +1201,7 @@ const VRSpeechTrainer = () => {
       duration: `${Math.floor(speechDuration / 60)}m ${speechDuration % 60}s`,
       audienceSize,
       audienceMood,
+      notes: speechNotes,
       metrics: {
         pacing: feedback.pacing,
         clarity: feedback.clarity,
@@ -922,22 +1221,33 @@ const VRSpeechTrainer = () => {
     downloadAnchorNode.remove()
   }
 
+  // Toggle controls position for mobile
+  const toggleControlsPosition = () => {
+    setControlsPosition((prev) => {
+      if (prev === "hidden") return "bottom"
+      if (prev === "bottom") return "hidden"
+      return prev
+    })
+  }
+
   // Clean up interval on unmount
   useEffect(() => {
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
       }
-    };
+    }
   }, [])
 
   // Handle fullscreen change event with proper browser support
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement ||
-        !!document.webkitFullscreenElement ||
-        !!document.mozFullScreenElement ||
-        !!document.msFullscreenElement)
+      setIsFullscreen(
+        !!document.fullscreenElement ||
+          !!document.webkitFullscreenElement ||
+          !!document.mozFullScreenElement ||
+          !!document.msFullscreenElement,
+      )
     }
 
     document.addEventListener("fullscreenchange", handleFullscreenChange)
@@ -950,48 +1260,16 @@ const VRSpeechTrainer = () => {
       document.removeEventListener("webkitfullscreenchange", handleFullscreenChange)
       document.removeEventListener("mozfullscreenchange", handleFullscreenChange)
       document.removeEventListener("MSFullscreenChange", handleFullscreenChange)
-    };
-  }, [])
-
-  // Handle device orientation for mobile
-  useEffect(() => {
-    // Request permission for device orientation on iOS 13+
-    const requestPermission = async () => {
-      if (
-        typeof DeviceOrientationEvent !== "undefined" &&
-        typeof DeviceOrientationEvent.requestPermission === "function"
-      ) {
-        try {
-          const permission = await DeviceOrientationEvent.requestPermission()
-          if (permission !== "granted") {
-            console.log("Device orientation permission not granted")
-          }
-        } catch (error) {
-          console.error("Error requesting device orientation permission:", error)
-        }
-      }
     }
-
-    // Request permission when user interacts with the app
-    const handleUserInteraction = () => {
-      requestPermission()
-      document.removeEventListener("click", handleUserInteraction)
-    }
-
-    document.addEventListener("click", handleUserInteraction)
-
-    return () => {
-      document.removeEventListener("click", handleUserInteraction)
-    };
   }, [])
 
   // Adjust layout for mobile
   useEffect(() => {
     if (isMobile) {
-      // On mobile, start with controls hidden in landscape
+      // On mobile, start with controls at bottom in landscape
       const handleOrientationChange = () => {
         const isLandscape = window.innerWidth > window.innerHeight
-        setShowControls(!isLandscape)
+        setControlsPosition(isLandscape ? "bottom" : "side")
       }
 
       handleOrientationChange()
@@ -999,26 +1277,39 @@ const VRSpeechTrainer = () => {
 
       return () => {
         window.removeEventListener("resize", handleOrientationChange)
-      };
+      }
     }
   }, [isMobile])
 
-  return (
-    (<div className="flex flex-col lg:flex-row w-full h-screen bg-gray-900">
-      {/* Control Panel - Conditionally shown on mobile */}
-      {(showControls || !isMobile) && (
-        <div
-          className={`${isMobile ? "w-full h-1/2" : "w-full lg:w-1/4"} p-4 bg-gray-800 text-white overflow-y-auto relative`}>
-          {isMobile && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-2 right-2"
-              onClick={() => setShowControls(false)}>
-              <X className="h-4 w-4" />
-            </Button>
-          )}
+  // Render the control panel based on position
+  const renderControlPanel = () => {
+    if (controlsPosition === "hidden") return null
 
+    const isBottomControls = controlsPosition === "bottom"
+
+    return (
+      <div
+        className={cn(
+          "bg-gray-800 text-white overflow-y-auto relative",
+          isBottomControls
+            ? "w-full h-1/3 border-t border-gray-700"
+            : isMobile
+              ? "w-full h-1/2"
+              : "w-full lg:w-1/4 h-full border-r border-gray-700",
+        )}
+      >
+        {isBottomControls && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 rounded-full bg-gray-800 border border-gray-700"
+            onClick={toggleControlsPosition}
+          >
+            <ChevronUp className="h-4 w-4" />
+          </Button>
+        )}
+
+        <div className="p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold">VR Speech Trainer</h2>
             <div className="flex space-x-2">
@@ -1026,7 +1317,7 @@ const VRSpeechTrainer = () => {
                 {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
               </Button>
               <Button variant="outline" size="icon" onClick={toggleFullscreen}>
-                {isFullscreen ? <FullscreenExit className="h-4 w-4" /> : <Fullscreen className="h-4 w-4" />}
+                {isFullscreen ? <Fullscreen className="h-4 w-4" /> : <Fullscreen className="h-4 w-4" />}
               </Button>
             </div>
           </div>
@@ -1046,7 +1337,40 @@ const VRSpeechTrainer = () => {
                   value={speechTopic}
                   onChange={(e) => setSpeechTopic(e.target.value)}
                   className="bg-gray-700 border-gray-600"
-                  placeholder="Enter your speech topic" />
+                  placeholder="Enter your speech topic"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="speech-notes">Speech Notes</Label>
+                <div className="flex space-x-2">
+                  <Input
+                    id="speech-notes"
+                    ref={notesInputRef}
+                    className="bg-gray-700 border-gray-600 flex-1"
+                    placeholder="Add key points (optional)"
+                  />
+                  <Button onClick={addSpeechNote} variant="outline">
+                    Add
+                  </Button>
+                </div>
+                {speechNotes.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {speechNotes.map((note, index) => (
+                      <div key={index} className="flex items-center justify-between bg-gray-700 p-2 rounded text-sm">
+                        <span>• {note}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => removeSpeechNote(index)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -1061,7 +1385,8 @@ const VRSpeechTrainer = () => {
                   max={30}
                   step={1}
                   value={[audienceSize]}
-                  onValueChange={(value) => setAudienceSize(value[0])} />
+                  onValueChange={(value) => setAudienceSize(value[0])}
+                />
               </div>
 
               <div className="space-y-2">
@@ -1115,21 +1440,55 @@ const VRSpeechTrainer = () => {
                   <Button
                     variant={viewMode === "audience" ? "default" : "outline"}
                     onClick={() => changeViewMode("audience")}
-                    className="text-xs">
+                    className="text-xs"
+                  >
                     Audience View
                   </Button>
                   <Button
                     variant={viewMode === "speaker" ? "default" : "outline"}
                     onClick={() => changeViewMode("speaker")}
-                    className="text-xs">
+                    className="text-xs"
+                  >
                     Speaker View
                   </Button>
                   <Button
                     variant={viewMode === "top" ? "default" : "outline"}
                     onClick={() => changeViewMode("top")}
-                    className="text-xs">
+                    className="text-xs"
+                  >
                     Top View
                   </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Speaker Appearance</Label>
+                <div className="grid grid-cols-5 gap-2">
+                  <Button
+                    variant={speakerColor === "#2a4a8a" ? "default" : "outline"}
+                    className="w-full h-8 bg-blue-800 hover:bg-blue-700"
+                    onClick={() => setSpeakerColor("#2a4a8a")}
+                  />
+                  <Button
+                    variant={speakerColor === "#4a2a8a" ? "default" : "outline"}
+                    className="w-full h-8 bg-purple-800 hover:bg-purple-700"
+                    onClick={() => setSpeakerColor("#4a2a8a")}
+                  />
+                  <Button
+                    variant={speakerColor === "#8a2a4a" ? "default" : "outline"}
+                    className="w-full h-8 bg-red-800 hover:bg-red-700"
+                    onClick={() => setSpeakerColor("#8a2a4a")}
+                  />
+                  <Button
+                    variant={speakerColor === "#2a8a4a" ? "default" : "outline"}
+                    className="w-full h-8 bg-green-800 hover:bg-green-700"
+                    onClick={() => setSpeakerColor("#2a8a4a")}
+                  />
+                  <Button
+                    variant={speakerColor === "#8a8a2a" ? "default" : "outline"}
+                    className="w-full h-8 bg-yellow-800 hover:bg-yellow-700"
+                    onClick={() => setSpeakerColor("#8a8a2a")}
+                  />
                 </div>
               </div>
 
@@ -1139,18 +1498,36 @@ const VRSpeechTrainer = () => {
                   <Button
                     variant={enableOrbitControls ? "default" : "outline"}
                     onClick={() => setEnableOrbitControls(!enableOrbitControls)}
-                    className="flex-1">
+                    className="flex-1"
+                  >
                     <RotateCcw className="mr-2 h-4 w-4" />
                     {enableOrbitControls ? "Free Camera" : "Fixed Camera"}
                   </Button>
                   <Button
                     variant={showStats ? "default" : "outline"}
                     onClick={() => setShowStats(!showStats)}
-                    className="flex-1">
+                    className="flex-1"
+                  >
                     <Activity className="mr-2 h-4 w-4" />
                     {showStats ? "Hide Stats" : "Show Stats"}
                   </Button>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="vr-mode">VR Mode (Mobile Headsets)</Label>
+                  <Switch id="vr-mode" checked={vrMode} onCheckedChange={toggleVRMode} />
+                </div>
+                {vrMode && (
+                  <div className="p-3 bg-blue-900/30 border border-blue-700 rounded-md text-sm">
+                    <p className="flex items-center">
+                      <Headphones className="h-4 w-4 mr-2" />
+                      Place your phone in a VR headset for immersive view
+                    </p>
+                    <p className="mt-1 text-xs">Double-tap screen to reset view orientation</p>
+                  </div>
+                )}
               </div>
 
               {isMobile && (
@@ -1158,7 +1535,7 @@ const VRSpeechTrainer = () => {
                   <Label>Mobile Controls</Label>
                   <div className="p-3 bg-gray-700 rounded text-sm">
                     <p className="mb-2">
-                      <Smartphone className="inline-block mr-1 h-4 w-4" />
+                      <Eye className="inline-block mr-1 h-4 w-4" />
                       Tilt your device to look around in VR mode
                     </p>
                     <p>Rotate to landscape for immersive view</p>
@@ -1185,7 +1562,7 @@ const VRSpeechTrainer = () => {
                           <Label>Pacing</Label>
                           <span>{feedback.pacing}%</span>
                         </div>
-                        <Progress value={feedback.pacing} />
+                        <Progress value={feedback.pacing} className="h-2" />
                       </div>
 
                       <div className="space-y-1">
@@ -1193,7 +1570,7 @@ const VRSpeechTrainer = () => {
                           <Label>Clarity</Label>
                           <span>{feedback.clarity}%</span>
                         </div>
-                        <Progress value={feedback.clarity} />
+                        <Progress value={feedback.clarity} className="h-2" />
                       </div>
 
                       <div className="space-y-1">
@@ -1201,7 +1578,7 @@ const VRSpeechTrainer = () => {
                           <Label>Confidence</Label>
                           <span>{feedback.confidence}%</span>
                         </div>
-                        <Progress value={feedback.confidence} />
+                        <Progress value={feedback.confidence} className="h-2" />
                       </div>
 
                       <div className="space-y-1">
@@ -1209,7 +1586,7 @@ const VRSpeechTrainer = () => {
                           <Label>Eye Contact</Label>
                           <span>{feedback.eyeContact}%</span>
                         </div>
-                        <Progress value={feedback.eyeContact} />
+                        <Progress value={feedback.eyeContact} className="h-2" />
                       </div>
                     </div>
 
@@ -1234,8 +1611,7 @@ const VRSpeechTrainer = () => {
                   </CardContent>
                 </Card>
               ) : (
-                <div
-                  className="flex flex-col items-center justify-center h-[300px] text-center space-y-4">
+                <div className="flex flex-col items-center justify-center h-[300px] text-center space-y-4">
                   <Timer className="h-12 w-12 text-gray-400" />
                   <div>
                     <h3 className="text-xl font-bold">No Feedback Yet</h3>
@@ -1250,8 +1626,7 @@ const VRSpeechTrainer = () => {
           </Tabs>
 
           {recording && (
-            <div
-              className="mt-4 p-3 bg-red-900/30 border border-red-700 rounded-md flex items-center">
+            <div className="mt-4 p-3 bg-red-900/30 border border-red-700 rounded-md flex items-center">
               <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse mr-2"></div>
               <div className="flex-1">Recording in progress</div>
               <div className="font-mono">
@@ -1260,114 +1635,180 @@ const VRSpeechTrainer = () => {
             </div>
           )}
         </div>
-      )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col lg:flex-row w-full h-screen bg-gray-900">
+      {/* Control Panel - Conditionally shown based on position */}
+      {controlsPosition === "side" && renderControlPanel()}
+
       {/* VR View */}
       <div
-        className={`${isMobile && !showControls ? "w-full h-full" : isMobile ? "w-full h-1/2" : "w-full lg:w-3/4 h-full"} relative`}
-        ref={canvasRef}>
-        <Canvas shadows>
-          {showStats && <Stats />}
+        className={cn(
+          "relative",
+          controlsPosition === "side" ? (isMobile ? "w-full h-1/2" : "w-full lg:w-3/4 h-full") : "w-full h-full",
+        )}
+        ref={canvasRef}
+      >
+        <div className="w-full h-full">
+          <Canvas shadows>
+            {/* Custom camera with perspective settings */}
+            <PerspectiveCamera
+              makeDefault
+              position={[cameraPosition.x, cameraPosition.y, cameraPosition.z]}
+              fov={70}
+              near={0.1}
+              far={1000}
+            />
 
-          <CameraController
-            position={cameraPosition}
-            target={cameraTarget}
-            enableRotation={enableOrbitControls} />
+            <CameraController position={cameraPosition} target={cameraTarget} enableRotation={enableOrbitControls} />
 
-          {/* Mobile orientation controller */}
-          {isMobile && !enableOrbitControls && (
-            <MobileOrientationController onOrientationChange={handleOrientationChange} />
-          )}
+            {/* Enhanced orientation controls for mobile */}
+            {isMobile && !enableOrbitControls && (
+              <SmoothOrientationControls onOrientationChange={handleOrientationChange} vrMode={vrMode} />
+            )}
 
-          <EnvironmentRenderer preset={environmentPreset} />
+            {/* Stereo effect for VR mode */}
+            <StereoEffect active={vrMode}>
+              {/* Environment based on preset */}
+              <Environment preset={environmentPreset} background={false} />
+              <color attach="background" args={[environmentPreset === "night" ? "#020209" : "#101020"]} />
+              <fog attach="fog" args={[environmentPreset === "night" ? "#020209" : "#101020", 5, 30]} />
 
-          <Suspense fallback={<LoadingScreen />}>
-            <VirtualRoom
-              audienceSize={audienceSize}
-              audienceMood={audienceMood}
-              environmentPreset={environmentPreset}
-              speechTopic={speechTopic}
-              recording={recording} />
-            <SpeechTimer duration={speechDuration} visible={recording} />
-          </Suspense>
+              {/* Main scene */}
+              <VirtualRoom
+                audienceSize={audienceSize}
+                audienceMood={audienceMood}
+                environmentPreset={environmentPreset}
+                speechTopic={speechTopic}
+                speechNotes={speechNotes}
+                recording={recording}
+              />
 
-          {enableOrbitControls && (
-            <OrbitControls
-              enableDamping
-              dampingFactor={0.05}
-              minDistance={1}
-              maxDistance={15}
-              target={[cameraTarget.x, cameraTarget.y, cameraTarget.z]} />
-          )}
-        </Canvas>
+              {/* Speech timer */}
+              <SpeechTimer duration={speechDuration} visible={recording} />
+            </StereoEffect>
+
+            {/* Orbit controls when enabled */}
+            {enableOrbitControls && !vrMode && (
+              <OrbitControls
+                enableDamping
+                dampingFactor={0.05}
+                minDistance={1}
+                maxDistance={15}
+                target={[cameraTarget.x, cameraTarget.y, cameraTarget.z]}
+              />
+            )}
+          </Canvas>
+        </div>
 
         {/* Mobile toggle for controls */}
-        {isMobile && !showControls && (
+        {controlsPosition === "hidden" && (
           <Button
             variant="outline"
             size="icon"
-            className="absolute top-4 left-4 bg-black/50 border-gray-700 hover:bg-black/70"
-            onClick={() => setShowControls(true)}>
+            className="absolute top-4 left-4 bg-black/50 border-gray-700 hover:bg-black/70 z-50"
+            onClick={toggleControlsPosition}
+          >
             <Settings className="h-4 w-4" />
           </Button>
         )}
 
         {/* Camera controls overlay */}
-        <div className="absolute top-4 right-4 flex space-x-2">
+        <div className="absolute top-4 right-4 flex space-x-2 z-50">
           <Button
             variant="outline"
             size="icon"
             onClick={toggleFullscreen}
-            className="bg-black/50 border-gray-700 hover:bg-black/70">
-            {isFullscreen ? <FullscreenExit className="h-4 w-4" /> : <Fullscreen className="h-4 w-4" />}
+            className="bg-black/50 border-gray-700 hover:bg-black/70"
+          >
+            <Fullscreen className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
             size="icon"
             onClick={() => setShowStats(!showStats)}
-            className="bg-black/50 border-gray-700 hover:bg-black/70">
+            className="bg-black/50 border-gray-700 hover:bg-black/70"
+          >
             <Activity className="h-4 w-4" />
           </Button>
         </div>
 
+        {/* VR mode toggle */}
+        <div className="absolute bottom-4 right-4 flex space-x-2 z-50">
+          <Button
+            variant={vrMode ? "default" : "outline"}
+            size="sm"
+            onClick={toggleVRMode}
+            className="bg-black/50 border-gray-700 hover:bg-black/70"
+          >
+            {vrMode ? (
+              <>
+                <EyeOff className="mr-1 h-4 w-4" />
+                Exit VR
+              </>
+            ) : (
+              <>
+                <Eye className="mr-1 h-4 w-4" />
+                VR Mode
+              </>
+            )}
+          </Button>
+        </div>
+
         {/* Audience size indicator */}
-        <div
-          className="absolute bottom-4 right-4 bg-black/50 text-white px-2 py-1 rounded text-sm flex items-center">
+        <div className="absolute bottom-4 left-4 bg-black/50 text-white px-2 py-1 rounded text-sm flex items-center z-50">
           <Users className="h-4 w-4 mr-1" />
           {audienceSize}
         </div>
 
         {/* Recording indicator */}
         {recording && (
-          <div
-            className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/50 text-white p-2 rounded text-sm flex items-center">
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/50 text-white p-2 rounded text-sm flex items-center z-50">
             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-2"></div>
             Recording: {Math.floor(speechDuration / 60)}:{(speechDuration % 60).toString().padStart(2, "0")}
           </div>
         )}
 
         {/* View mode buttons */}
-        <div className="absolute bottom-4 left-4 flex flex-col space-y-2">
-          <Button
-            variant={viewMode === "audience" ? "default" : "outline"}
-            size="sm"
-            onClick={() => changeViewMode("audience")}
-            className="bg-black/50 border-gray-700 hover:bg-black/70">
-            Audience View
-          </Button>
-          <Button
-            variant={viewMode === "speaker" ? "default" : "outline"}
-            size="sm"
-            onClick={() => changeViewMode("speaker")}
-            className="bg-black/50 border-gray-700 hover:bg-black/70">
-            Speaker View
-          </Button>
+        <div className="absolute top-4 left-4 flex flex-col space-y-2 z-50">
+          {controlsPosition !== "hidden" && (
+            <>
+              <Button
+                variant={viewMode === "audience" ? "default" : "outline"}
+                size="sm"
+                onClick={() => changeViewMode("audience")}
+                className="bg-black/50 border-gray-700 hover:bg-black/70"
+              >
+                Audience
+              </Button>
+              <Button
+                variant={viewMode === "speaker" ? "default" : "outline"}
+                size="sm"
+                onClick={() => changeViewMode("speaker")}
+                className="bg-black/50 border-gray-700 hover:bg-black/70"
+              >
+                Speaker
+              </Button>
+              <Button
+                variant={viewMode === "top" ? "default" : "outline"}
+                size="sm"
+                onClick={() => changeViewMode("top")}
+                className="bg-black/50 border-gray-700 hover:bg-black/70"
+              >
+                Top
+              </Button>
+            </>
+          )}
         </div>
-
-        {/* Loader component */}
-        <Loader />
       </div>
-    </div>)
-  );
+
+      {/* Bottom controls for mobile */}
+      {controlsPosition === "bottom" && renderControlPanel()}
+    </div>
+  )
 }
 
 export default VRSpeechTrainer

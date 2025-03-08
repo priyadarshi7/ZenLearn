@@ -7,21 +7,20 @@ export const useMediaQuery = (query) => {
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(query)
-
-    const handleChange = () => {
-      setMatches(mediaQuery.matches)
-    }
+    const handleChange = () => setMatches(mediaQuery.matches)
 
     // Set initial value
     setMatches(mediaQuery.matches)
 
+    // Add listener
     mediaQuery.addEventListener("change", handleChange)
 
-    return () => {
-      mediaQuery.removeEventListener("change", handleChange)
-    };
+    // Cleanup
+    return () => mediaQuery.removeEventListener("change", handleChange)
   }, [query])
 
   return matches
 }
+
+export default useMediaQuery
 
