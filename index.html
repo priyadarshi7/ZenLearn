@@ -1,0 +1,1756 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>VR Public Speaking Trainer</title>
+  <meta name="description" content="VR Public Speaking Training App">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <script src="https://unpkg.com/aframe-environment-component@1.3.2/dist/aframe-environment-component.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
+  <script src="https://unpkg.com/aframe-event-set-component@5.0.0/dist/aframe-event-set-component.min.js"></script>
+  <script src="https://unpkg.com/super-hands@^3.0.1/dist/super-hands.min.js"></script>
+  
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    
+    .a-enter-vr {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+    }
+    
+    #speech-recognition-status {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%); /* Centers horizontally */
+
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: Arial, sans-serif;
+      z-index: 999;
+    }
+    
+    #controls-help {
+      position: fixed;
+      top: 50%; /* Changed from top:20px */
+      left: 20px;
+      transform: translateY(-50%); /* Centers vertically */      left: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: Arial, sans-serif;
+      z-index: 999;
+    }
+  </style>
+</head>
+<body>
+  <div id="speech-recognition-status">Speech Recognition: Inactive</div>
+  <div id="controls-help">
+    <h3>Controls:</h3>
+    <p>Arrow Keys / Space: Navigate slides</p>
+    <p>N: Toggle speaker notes</p>
+    <p>Click and drag: Point at slides</p>
+    <p>Click buttons to interact</p>
+  </div>
+  
+  <a-scene cursor="rayOrigin: mouse" raycaster="objects: .clickable">
+    <a-assets>
+      <!-- Preload textures and materials -->
+      <img id="grid" src="https://cdn.glitch.global/3dee4fcb-a6e0-4d8a-b8c3-0a2bd5cd004a/grid.png?v=1683034055911" crossorigin="anonymous">
+      <img id="wood" src="https://cdn.glitch.global/3dee4fcb-a6e0-4d8a-b8c3-0a2bd5cd004a/wood.jpg?v=1683034057544" crossorigin="anonymous">
+      <img id="carpet" src="https://cdn.glitch.global/3dee4fcb-a6e0-4d8a-b8c3-0a2bd5cd004a/carpet.jpg?v=1683034054213" crossorigin="anonymous">
+      
+      <!-- Slide templates -->
+      <script id="slide-template" type="text/html">
+        <a-entity>
+          <a-plane width="4" height="2.4" color="white" shader="flat"></a-plane>
+          <a-plane width="4.1" height="2.5" color="#1a75ff" position="0 0 -0.01" shader="flat"></a-plane>
+          <a-text value="${title}" align="center" position="0 0.9 0.01" color="#1a75ff" width="3.5" shader="flat"></a-text>
+          <a-text value="${content}" align="left" position="-1.8 0 0.01" color="#333" width="3.6" shader="flat"></a-text>
+          <a-text value="${number}" align="right" position="1.9 -1.1 0.01" color="#666" width="1" shader="flat"></a-text>
+        </a-entity>
+      </script>
+    </a-assets>
+    
+    <!-- Camera and controls -->
+    <a-entity id="rig" position="0 1 0">
+        <a-camera look-controls wasd-controls rotation="-20 0 0">
+                    <a-entity cursor="fuse: false; rayOrigin: mouse"
+                  raycaster="objects: .clickable"
+                  position="0 0 -1"
+                  geometry="primitive: ring; radiusInner: 0.01; radiusOuter: 0.02"
+                  material="color: white; shader: flat"
+                  animation__click="property: scale; startEvents: click; easing: easeInCubic; dur: 150; from: 0.1 0.1 0.1; to: 1 1 1"
+                  animation__fusing="property: scale; startEvents: fusing; easing: easeInCubic; dur: 1500; from: 1 1 1; to: 0.1 0.1 0.1"
+                  animation__mouseleave="property: scale; startEvents: mouseleave; easing: easeInCubic; dur: 500; to: 1 1 1">
+        </a-entity>
+      </a-camera>
+      <a-entity id="stats-display" 
+      position="1.5 0 -1" 
+      rotation="-20 0 0"
+      stats-display></a-entity>
+
+<a-entity id="session-recorder" 
+      position="-1.5 0 -1" 
+      rotation="-20 0 0"
+      session-recorder></a-entity>
+
+<a-entity id="speech-feedback" 
+      position="0 0 -1.5" 
+      rotation="-20 0 0"
+      speech-feedback></a-entity>
+    </a-entity>
+    
+    <!-- Environment -->
+    <a-entity id="environment" environment="preset: default; skyType: gradient; skyColor: #d0f0ff; horizonColor: #f0f0f0; lighting: distant; lightPosition: 0 1 -0.2; ground: flat; groundColor: #f0f0f0; groundColor2: #e0e0e0; dressing: none"></a-entity>
+    
+    <!-- Audience container -->
+    <a-entity id="audience-container" position="0 0 -6" audience-generator="count: 15; rows: 3; columns: 5"></a-entity>
+    
+    <!-- Presentation controls -->
+    <a-entity id="presentation-controls" presentation-controls="maxSlides: 10"></a-entity>
+    
+    <!-- Stats display -->
+    <!-- <a-entity id="stats-display" stats-display></a-entity> -->
+    
+    <!-- Session recorder -->
+    <!-- <a-entity id="session-recorder" session-recorder></a-entity> -->
+    
+    <!-- User settings -->
+    <a-entity id="user-settings" user-settings></a-entity>
+    
+    <!-- Environment switcher -->
+    <a-entity id="environment-switcher" environment-switcher></a-entity>
+    
+    <!-- Gesture visualizer -->
+    <a-entity id="gesture-visualizer" gesture-visualizer></a-entity>
+    
+    <!-- Speech feedback -->
+    <!-- <a-entity id="speech-feedback" speech-feedback></a-entity> -->
+  </a-scene>
+  
+  <script>
+    // Component for audience member behavior
+    AFRAME.registerComponent('audience-member', {
+      schema: {
+        expressionChangeInterval: {type: 'number', default: 5000},
+        movementInterval: {type: 'number', default: 3000}
+      },
+      
+      init: function() {
+        this.expressions = ['neutral', 'interested', 'bored', 'distracted', 'smiling', 'nodding'];
+        this.currentExpression = 'neutral';
+        this.setupExpressionChanges();
+        this.setupRandomMovements();
+      },
+      
+      setupExpressionChanges: function() {
+        this.expressionInterval = setInterval(() => {
+          const randomIndex = Math.floor(Math.random() * this.expressions.length);
+          this.currentExpression = this.expressions[randomIndex];
+          this.updateExpression();
+        }, this.data.expressionChangeInterval + (Math.random() * 2000));
+      },
+      
+      setupRandomMovements: function() {
+        this.movementInterval = setInterval(() => {
+          if (Math.random() > 0.7) {
+            // Small random rotation or position change
+            const rotChange = (Math.random() - 0.5) * 5;
+            const headEl = this.el.querySelector('.head');
+            if (headEl) {
+              const currentRot = headEl.getAttribute('rotation') || {x: 0, y: 0, z: 0};
+              headEl.setAttribute('rotation', {
+                x: currentRot.x + (Math.random() - 0.5) * 10,
+                y: currentRot.y + rotChange,
+                z: currentRot.z
+              });
+            }
+          }
+        }, this.data.movementInterval);
+      },
+      
+      updateExpression: function() {
+        const face = this.el.querySelector('.face');
+        if (face) {
+          // In a full implementation, this would change textures or 
+          // other visual properties to reflect different expressions
+          face.setAttribute('color', this.getExpressionColor());
+          
+          // Add visible behavior for nodding
+          if (this.currentExpression === 'nodding') {
+            this.startNodding();
+          } else {
+            this.stopNodding();
+          }
+        }
+      },
+      
+      getExpressionColor: function() {
+        // Simple color mapping for different expressions
+        // In a full implementation, this would use proper textures
+        switch(this.currentExpression) {
+          case 'interested': return '#8eff8e';
+          case 'bored': return '#ccc';
+          case 'distracted': return '#ffdc7a';
+          case 'smiling': return '#ffcf87';
+          case 'nodding': return '#87ff9b';
+          default: return '#f5f5f5'; // neutral
+        }
+      },
+      
+      startNodding: function() {
+        const head = this.el.querySelector('.head');
+        if (head && !this.noddingAnimation) {
+          this.noddingAnimation = true;
+          let counter = 0;
+          this.noddingInterval = setInterval(() => {
+            const currentRot = head.getAttribute('rotation') || {x: 0, y: 0, z: 0};
+            head.setAttribute('rotation', {
+              x: 5 * Math.sin(counter),
+              y: currentRot.y,
+              z: currentRot.z
+            });
+            counter += 0.2;
+            if (counter > 6) {
+              this.stopNodding();
+            }
+          }, 100);
+        }
+      },
+      
+      stopNodding: function() {
+        if (this.noddingInterval) {
+          clearInterval(this.noddingInterval);
+          this.noddingAnimation = false;
+          const head = this.el.querySelector('.head');
+          if (head) {
+            const currentRot = head.getAttribute('rotation') || {x: 0, y: 0, z: 0};
+            head.setAttribute('rotation', {
+              x: 0,
+              y: currentRot.y,
+              z: currentRot.z
+            });
+          }
+        }
+      },
+      
+      remove: function() {
+        // Clean up intervals when component is removed
+        if (this.expressionInterval) clearInterval(this.expressionInterval);
+        if (this.movementInterval) clearInterval(this.movementInterval);
+        if (this.noddingInterval) clearInterval(this.noddingInterval);
+      }
+    });
+
+    // Component to generate audience members
+    AFRAME.registerComponent('audience-generator', {
+      schema: {
+        count: {type: 'number', default: 15},
+        rows: {type: 'number', default: 3},
+        columns: {type: 'number', default: 5}
+      },
+      
+      init: function() {
+        // Clear any existing audience members
+        while (this.el.firstChild) {
+          this.el.removeChild(this.el.firstChild);
+        }
+        this.generateAudience();
+      },
+      
+      generateAudience: function() {
+        const rowSpacing = 1.5;
+        const colSpacing = 1.2;
+        
+        for (let row = 0; row < this.data.rows; row++) {
+          const z = -3 - (row * rowSpacing);
+          
+          for (let col = 0; col < this.data.columns; col++) {
+            // Skip some seats randomly for realism
+            if (Math.random() > 0.9) continue;
+            
+            const x = (col - Math.floor(this.data.columns / 2)) * colSpacing;
+            this.createAudienceMember(x, 0, z);
+          }
+        }
+      },
+      
+      createAudienceMember: function(x, y, z) {
+        const memberEl = document.createElement('a-entity');
+        memberEl.setAttribute('position', {x, y, z});
+        memberEl.setAttribute('audience-member', '');
+        
+        // Look roughly towards the stage/speaker
+        const lookRotY = Math.atan2(-z, -x) * (180 / Math.PI);
+        memberEl.setAttribute('rotation', {x: 0, y: lookRotY, z: 0});
+        
+        // Create a simple seated person
+        const body = document.createElement('a-entity');
+        body.classList.add('body');
+        
+        // Torso
+        const torso = document.createElement('a-box');
+        torso.setAttribute('position', {x: 0, y: 0.6, z: 0});
+        torso.setAttribute('width', 0.4);
+        torso.setAttribute('height', 0.6);
+        torso.setAttribute('depth', 0.2);
+        torso.setAttribute('color', this.getRandomColor());
+        body.appendChild(torso);
+        
+        // Head
+        const head = document.createElement('a-entity');
+        head.classList.add('head');
+        head.setAttribute('position', {x: 0, y: 1.1, z: 0});
+        
+        const skull = document.createElement('a-sphere');
+        skull.setAttribute('radius', 0.15);
+        skull.setAttribute('color', '#f0d0b0');
+        head.appendChild(skull);
+        
+        // Face
+        const face = document.createElement('a-plane');
+        face.classList.add('face');
+        face.setAttribute('position', {x: 0, y: 0, z: 0.15});
+        face.setAttribute('width', 0.2);
+        face.setAttribute('height', 0.25);
+        face.setAttribute('color', '#f5f5f5');
+        head.appendChild(face);
+        
+        body.appendChild(head);
+        memberEl.appendChild(body);
+        
+        // Limbs
+        this.addLimbs(body);
+        
+        this.el.appendChild(memberEl);
+      },
+      
+      getRandomColor: function() {
+        const colors = ['#3a86ff', '#8338ec', '#ff006e', '#fb5607', '#ffbe0b', '#3a0ca3', '#4cc9f0', '#7209b7'];
+        return colors[Math.floor(Math.random() * colors.length)];
+      },
+      
+      addLimbs: function(bodyEl) {
+        // Arms
+        const leftArm = document.createElement('a-box');
+        leftArm.setAttribute('position', {x: -0.3, y: 0.6, z: 0});
+        leftArm.setAttribute('width', 0.1);
+        leftArm.setAttribute('height', 0.6);
+        leftArm.setAttribute('depth', 0.1);
+        leftArm.setAttribute('color', '#f0d0b0');
+        bodyEl.appendChild(leftArm);
+        
+        const rightArm = document.createElement('a-box');
+        rightArm.setAttribute('position', {x: 0.3, y: 0.6, z: 0});
+        rightArm.setAttribute('width', 0.1);
+        rightArm.setAttribute('height', 0.6);
+        rightArm.setAttribute('depth', 0.1);
+        rightArm.setAttribute('color', '#f0d0b0');
+        bodyEl.appendChild(rightArm);
+        
+        // Legs (seated position)
+        const leftLeg = document.createElement('a-box');
+        leftLeg.setAttribute('position', {x: -0.1, y: 0.2, z: 0.2});
+        leftLeg.setAttribute('width', 0.1);
+        leftLeg.setAttribute('height', 0.4);
+        leftLeg.setAttribute('depth', 0.6);
+        leftLeg.setAttribute('color', '#555');
+        leftLeg.setAttribute('rotation', {x: 90, y: 0, z: 0});
+        bodyEl.appendChild(leftLeg);
+        
+        const rightLeg = document.createElement('a-box');
+        rightLeg.setAttribute('position', {x: 0.1, y: 0.2, z: 0.2});
+        rightLeg.setAttribute('width', 0.1);
+        rightLeg.setAttribute('height', 0.4);
+        rightLeg.setAttribute('depth', 0.6);
+        rightLeg.setAttribute('color', '#555');
+        rightLeg.setAttribute('rotation', {x: 90, y: 0, z: 0});
+        bodyEl.appendChild(rightLeg);
+      },
+      
+      update: function() {
+        // Clear existing audience when properties change
+        while (this.el.firstChild) {
+          this.el.removeChild(this.el.firstChild);
+        }
+        this.generateAudience();
+      }
+    });
+
+    // Component for environment switching
+    AFRAME.registerComponent('environment-switcher', {
+      init: function() {
+        this.environments = ['conference', 'auditorium', 'classroom'];
+        this.currentEnv = 0;
+        
+        // UI for environment switching
+        const switcherUI = document.createElement('a-entity');
+        switcherUI.setAttribute('position', {x: 0, y: 0.1, z: -1.5});
+        switcherUI.setAttribute('rotation', {x: -30, y: 0, z: 0});
+        
+        const envButton = document.createElement('a-plane');
+        envButton.setAttribute('position', {x: 0, y: 0, z: 0});
+        envButton.setAttribute('width', 0.5);
+        envButton.setAttribute('height', 0.15);
+        envButton.setAttribute('color', '#1a75ff');
+        envButton.classList.add('clickable');
+        
+        const envText = document.createElement('a-text');
+        envText.setAttribute('value', 'Change Room');
+        envText.setAttribute('align', 'center');
+        envText.setAttribute('position', {x: 0, y: 0, z: 0.01});
+        envText.setAttribute('color', 'white');
+        envText.setAttribute('width', 1);
+        
+        envButton.appendChild(envText);
+        switcherUI.appendChild(envButton);
+        
+        // Add click event
+        envButton.addEventListener('click', () => {
+          this.switchEnvironment();
+        });
+        
+        // Start with conference environment
+        this.setEnvironment('conference');
+        
+        this.el.appendChild(switcherUI);
+      },
+      
+      switchEnvironment: function() {
+        this.currentEnv = (this.currentEnv + 1) % this.environments.length;
+        this.setEnvironment(this.environments[this.currentEnv]);
+      },
+      
+      setEnvironment: function(envType) {
+        const sceneEl = document.querySelector('a-scene');
+        
+        // Update environment component
+        const envEntity = document.querySelector('#environment');
+        
+        switch(envType) {
+          case 'conference':
+            envEntity.setAttribute('environment', {
+              preset: 'default',
+              skyType: 'gradient',
+              skyColor: '#d0f0ff',
+              horizonColor: '#f0f0f0',
+              lighting: 'distant',
+              lightPosition: { x: 0, y: 1, z: -0.2 },
+              ground: 'flat',
+              groundColor: '#f0f0f0',
+              groundColor2: '#e0e0e0',
+              dressing: 'none'
+            });
+            this.setupConferenceRoom(sceneEl);
+            break;
+            
+          case 'auditorium':
+            envEntity.setAttribute('environment', {
+              preset: 'default',
+              skyType: 'atmosphere',
+              lighting: 'distant',
+              lightPosition: { x: -0.5, y: 1, z: -0.2 },
+              ground: 'hills',
+              groundColor: '#553311',
+              groundColor2: '#664422',
+              dressing: 'none'
+            });
+            this.setupAuditorium(sceneEl);
+            break;
+            
+          case 'classroom':
+            envEntity.setAttribute('environment', {
+              preset: 'default',
+              skyType: 'gradient',
+              skyColor: '#a8d5ff',
+              horizonColor: '#d8f0ff',
+              lighting: 'point',
+              lightPosition: { x: 0, y: 1, z: 0.5 },
+              ground: 'flat',
+              groundColor: '#c9e6ff',
+              groundColor2: '#c9e6ff',
+              dressing: 'none'
+            });
+            this.setupClassroom(sceneEl);
+            break;
+        }
+        
+        // Update audience
+        this.updateAudience(envType);
+      },
+      
+      setupConferenceRoom: function(sceneEl) {
+        // Clear previous room elements
+        this.clearRoomElements(sceneEl);
+        
+        // Conference table
+        const table = document.createElement('a-box');
+        table.setAttribute('position', {x: 0, y: 0.5, z: -2});
+        table.setAttribute('width', 3);
+        table.setAttribute('depth', 1.5);
+        table.setAttribute('height', 0.1);
+        table.setAttribute('color', '#995533');
+        table.setAttribute('material', 'src: #wood; repeat: 2 1');
+        table.classList.add('room-element');
+        sceneEl.appendChild(table);
+        
+        // Chairs
+        this.createChair(-1, 0, -1.5, 180, sceneEl);
+        this.createChair(0, 0, -1.5, 180, sceneEl);
+        this.createChair(1, 0, -1.5, 180, sceneEl);
+        this.createChair(-1.3, 0, -2.5, 0, sceneEl);
+        this.createChair(0, 0, -2.5, 0, sceneEl);
+        this.createChair(1.3, 0, -2.5, 0, sceneEl);
+        
+        // Walls
+        const backWall = document.createElement('a-box');
+        backWall.setAttribute('position', {x: 0, y: 2, z: -8});
+        backWall.setAttribute('width', 12);
+        backWall.setAttribute('height', 4);
+        backWall.setAttribute('depth', 0.1);
+        backWall.setAttribute('color', '#f5f5f5');
+        backWall.classList.add('room-element');
+        sceneEl.appendChild(backWall);
+        
+        const leftWall = document.createElement('a-box');
+        leftWall.setAttribute('position', {x: -6, y: 2, z: -4});
+        leftWall.setAttribute('width', 0.1);
+        leftWall.setAttribute('height', 4);
+        leftWall.setAttribute('depth', 8);
+        leftWall.setAttribute('color', '#f5f5f5');
+        leftWall.classList.add('room-element');
+        sceneEl.appendChild(leftWall);
+        
+        const rightWall = document.createElement('a-box');
+        rightWall.setAttribute('position', {x: 6, y: 2, z: -4});
+        rightWall.setAttribute('width', 0.1);
+        rightWall.setAttribute('height', 4);
+        rightWall.setAttribute('depth', 8);
+        rightWall.setAttribute('color', '#f5f5f5');
+        rightWall.classList.add('room-element');
+        sceneEl.appendChild(rightWall);
+      },
+      
+      setupAuditorium: function(sceneEl) {
+        // Clear previous room elements
+        this.clearRoomElements(sceneEl);
+        
+        // Stage
+        const stage = document.createElement('a-box');
+        stage.setAttribute('position', {x: 0, y: -0.1, z: -6});
+        stage.setAttribute('width', 10);
+        stage.setAttribute('height', 0.2);
+        stage.setAttribute('depth', 4);
+        stage.setAttribute('color', '#8b4513');
+        stage.classList.add('room-element');
+        sceneEl.appendChild(stage);
+        
+        // Podium
+        const podium = document.createElement('a-box');
+        podium.setAttribute('position', {x: -2, y: 0.6, z: -4.5});
+        podium.setAttribute('width', 0.8);
+        podium.setAttribute('height', 1.2);
+        podium.setAttribute('depth', 0.5);
+        podium.setAttribute('color', '#5d3a1a');
+        podium.classList.add('room-element');
+        sceneEl.appendChild(podium);
+        
+        // Background curtain
+        const curtain = document.createElement('a-plane');
+        curtain.setAttribute('position', {x: 0, y: 2, z: -8});
+        curtain.setAttribute('width', 12);
+        curtain.setAttribute('height', 5);
+        curtain.setAttribute('color', '#7b241c');
+        curtain.classList.add('room-element');
+        sceneEl.appendChild(curtain);
+        
+        // Side walls
+        const leftWall = document.createElement('a-box');
+        leftWall.setAttribute('position', {x: -6, y: 2, z: -4});
+        leftWall.setAttribute('width', 0.1);
+        leftWall.setAttribute('height', 4);
+        leftWall.setAttribute('depth', 8);
+        leftWall.setAttribute('color', '#333');
+        leftWall.classList.add('room-element');
+        sceneEl.appendChild(leftWall);
+        
+        const rightWall = document.createElement('a-box');
+        rightWall.setAttribute('position', {x: 6, y: 2, z: -4});
+        rightWall.setAttribute('width', 0.1);
+        rightWall.setAttribute('height', 4);
+        rightWall.setAttribute('depth', 8);
+        rightWall.setAttribute('color', '#333');
+        rightWall.classList.add('room-element');
+        sceneEl.appendChild(rightWall);
+      },
+      
+      setupClassroom: function(sceneEl) {
+        // Clear previous room elements
+        this.clearRoomElements(sceneEl);
+        
+        // Desks
+        for (let row = 0; row < 3; row++) {
+          for (let col = 0; col < 4; col++) {
+            const x = (col - 1.5) * 1.2;
+            const z = -2 - (row * 1.5);
+            
+            // Desk
+            const desk = document.createElement('a-box');
+            desk.setAttribute('position', {x: x, y: 0.4, z: z});
+            desk.setAttribute('width', 0.8);
+            desk.setAttribute('height', 0.05);
+            desk.setAttribute('depth', 0.6);
+            desk.setAttribute('color', '#d2b48c');
+            desk.classList.add('room-element');
+            sceneEl.appendChild(desk);
+            
+            // Desk legs
+            const frontLeftLeg = document.createElement('a-box');
+            frontLeftLeg.setAttribute('position', {x: x-0.35, y: 0.2, z: z+0.25});
+            frontLeftLeg.setAttribute('width', 0.05);
+            frontLeftLeg.setAttribute('height', 0.4);
+            frontLeftLeg.setAttribute('depth', 0.05);
+            frontLeftLeg.setAttribute('color', '#a0522d');
+            frontLeftLeg.classList.add('room-element');
+            sceneEl.appendChild(frontLeftLeg);
+            
+            const frontRightLeg = document.createElement('a-box');
+            frontRightLeg.setAttribute('position', {x: x+0.35, y: 0.2, z: z+0.25});
+            frontRightLeg.setAttribute('width', 0.05);
+            frontRightLeg.setAttribute('height', 0.4);
+            frontRightLeg.setAttribute('depth', 0.05);
+            frontRightLeg.setAttribute('color', '#a0522d');
+            frontRightLeg.classList.add('room-element');
+            sceneEl.appendChild(frontRightLeg);
+            
+            const backLeftLeg = document.createElement('a-box');
+            backLeftLeg.setAttribute('position', {x: x-0.35, y: 0.2, z: z-0.25});
+            backLeftLeg.setAttribute('width', 0.05);
+            backLeftLeg.setAttribute('height', 0.4);
+            backLeftLeg.setAttribute('depth', 0.05);
+            backLeftLeg.setAttribute('color', '#a0522d');
+            backLeftLeg.classList.add('room-element');
+            sceneEl.appendChild(backLeftLeg);
+            
+            const backRightLeg = document.createElement('a-box');
+            backRightLeg.setAttribute('position', {x: x+0.35, y: 0.2, z: z-0.25});
+            backRightLeg.setAttribute('width', 0.05);
+            backRightLeg.setAttribute('height', 0.4);
+            backRightLeg.setAttribute('depth', 0.05);
+            backRightLeg.setAttribute('color', '#a0522d');
+            backRightLeg.classList.add('room-element');
+            sceneEl.appendChild(backRightLeg);
+          }
+        }
+        
+        // Whiteboard
+        const whiteboard = document.createElement('a-plane');
+        whiteboard.setAttribute('position', {x: 0, y: 2, z: -6});
+        whiteboard.setAttribute('width', 5);
+        whiteboard.setAttribute('height', 2);
+        whiteboard.setAttribute('color', '#fff');
+        whiteboard.classList.add('room-element');
+        sceneEl.appendChild(whiteboard);
+        
+        // Teacher's desk
+        const teacherDesk = document.createElement('a-box');
+        teacherDesk.setAttribute('position', {x: -2, y: 0.5, z: -5});
+        teacherDesk.setAttribute('width', 1.5);
+        teacherDesk.setAttribute('height', 1);
+        teacherDesk.setAttribute('depth', 0.8);
+        teacherDesk.setAttribute('color', '#8b4513');
+        teacherDesk.classList.add('room-element');
+        sceneEl.appendChild(teacherDesk);
+        
+        // Walls
+        const backWall = document.createElement('a-box');
+        backWall.setAttribute('position', {x: 0, y: 2, z: -7});
+        backWall.setAttribute('width', 10);
+        backWall.setAttribute('height', 4);
+        backWall.setAttribute('depth', 0.1);
+        backWall.setAttribute('color', '#e6f3ff');
+        backWall.classList.add('room-element');
+        sceneEl.appendChild(backWall);
+        
+        const leftWall = document.createElement('a-box');
+        leftWall.setAttribute('position', {x: -5, y: 2, z: -3.5});
+        leftWall.setAttribute('width', 0.1);
+        leftWall.setAttribute('height', 4);
+        leftWall.setAttribute('depth', 7);
+        leftWall.setAttribute('color', '#e6f3ff');
+        leftWall.classList.add('room-element');
+        sceneEl.appendChild(leftWall);
+        
+        const rightWall = document.createElement('a-box');
+        rightWall.setAttribute('position', {x: 5, y: 2, z: -3.5});
+        rightWall.setAttribute('width', 0.1);
+        rightWall.setAttribute('height', 4);
+        rightWall.setAttribute('depth', 7);
+        rightWall.setAttribute('color', '#e6f3ff');
+        rightWall.classList.add('room-element');
+        sceneEl.appendChild(rightWall);
+      },
+      
+      clearRoomElements: function(sceneEl) {
+        // Remove furniture and room elements
+        const elements = sceneEl.querySelectorAll('.room-element');
+        elements.forEach(el => {
+          el.parentNode.removeChild(el);
+        });
+      },
+      
+      createChair: function(x, y, z, rotY, sceneEl) {
+        const chair = document.createElement('a-entity');
+        chair.setAttribute('position', {x, y, z});
+        chair.setAttribute('rotation', {x: 0, y: rotY, z: 0});
+        chair.classList.add('room-element');
+        
+        const seat = document.createElement('a-box');
+        seat.setAttribute('position', {x: 0, y: 0.25, z: 0});
+        seat.setAttribute('width', 0.5);
+        seat.setAttribute('depth', 0.5);
+        seat.setAttribute('height', 0.1);
+        seat.setAttribute('color', '#994c00');
+        chair.appendChild(seat);
+        
+        const back = document.createElement('a-box');
+        back.setAttribute('position', {x: 0, y: 0.6, z: -0.25});
+        back.setAttribute('width', 0.5);
+        back.setAttribute('depth', 0.05);
+        back.setAttribute('height', 0.6);
+        back.setAttribute('color', '#994c00');
+        chair.appendChild(back);
+        
+        sceneEl.appendChild(chair);
+      },
+      
+      updateAudience: function(envType) {
+        // Clear existing audience
+        const audienceContainer = document.querySelector('#audience-container');
+        
+        // Generate new audience based on environment
+        switch(envType) {
+          case 'conference':
+            audienceContainer.setAttribute('audience-generator', {
+              count: 6,
+              rows: 2,
+              columns: 3
+            });
+            break;
+            
+          case 'auditorium':
+            audienceContainer.setAttribute('audience-generator', {
+              count: 30,
+              rows: 5,
+              columns: 6
+            });
+            break;
+            
+          case 'classroom':
+            audienceContainer.setAttribute('audience-generator', {
+              count: 12,
+              rows: 3,
+              columns: 4
+            });
+            break;
+        }
+      }
+    });
+    
+    // Stats display component
+    AFRAME.registerComponent('stats-display', {
+      init: function() {
+        this.createStatsPanel();
+        
+        // Update timer every second for demo
+        this.timerSeconds = 0;
+        this.timerInterval = setInterval(() => {
+          this.timerSeconds++;
+          this.updateTimer();
+        }, 1000);
+      },
+      
+      createStatsPanel: function() {
+        // Container for stats
+        this.statsPanel = document.createElement('a-entity');
+        this.statsPanel.setAttribute('position', {x: 1.5, y: 1.7, z: -1});
+        this.statsPanel.setAttribute('rotation', {x: 0, y: -45, z: 0});
+        
+        // Background
+        const bg = document.createElement('a-plane');
+        bg.setAttribute('width', 0.6);
+        bg.setAttribute('height', 0.4);
+        bg.setAttribute('color', '#333');
+        bg.setAttribute('opacity', 0.8);
+        this.statsPanel.appendChild(bg);
+        
+        // Timer display
+        this.timerText = document.createElement('a-text');
+        this.timerText.setAttribute('position', {x: 0, y: 0.12, z: 0.01});
+        this.timerText.setAttribute('align', 'center');
+        this.timerText.setAttribute('color', 'white');
+        this.timerText.setAttribute('value', 'Time: 00:00');
+        this.timerText.setAttribute('width', 0.5);
+        this.statsPanel.appendChild(this.timerText);
+        
+        // Word count
+        this.wordCountText = document.createElement('a-text');
+        this.wordCountText.setAttribute('position', {x: 0, y: 0.05, z: 0.01});
+        this.wordCountText.setAttribute('align', 'center');
+        this.wordCountText.setAttribute('color', 'white');
+        this.wordCountText.setAttribute('value', 'Words: 0');
+        this.wordCountText.setAttribute('width', 0.5);
+        this.statsPanel.appendChild(this.wordCountText);
+        
+        // Pace indicator
+        this.paceText = document.createElement('a-text');
+        this.paceText.setAttribute('position', {x: 0, y: -0.02, z: 0.01});
+        this.paceText.setAttribute('align', 'center');
+        this.paceText.setAttribute('color', 'white');
+        this.paceText.setAttribute('value', 'Pace: Normal');
+        this.paceText.setAttribute('width', 0.5);
+        this.statsPanel.appendChild(this.paceText);
+        
+        // Engagement score
+        this.engagementText = document.createElement('a-text');
+        this.engagementText.setAttribute('position', {x: 0, y: -0.09, z: 0.01});
+        this.engagementText.setAttribute('align', 'center');
+        this.engagementText.setAttribute('color', 'white');
+        this.engagementText.setAttribute('value', 'Engagement: 75%');
+        this.engagementText.setAttribute('width', 0.5);
+        this.statsPanel.appendChild(this.engagementText);
+        
+        this.el.appendChild(this.statsPanel);
+        
+        // For demonstration, update stats periodically
+        this.wordCount = 0;
+        this.paceLevel = 'Normal';
+        this.engagement = 75;
+        
+        this.statsInterval = setInterval(() => {
+          // Simulated word count increase
+          this.wordCount += Math.floor(Math.random() * 3);
+          this.wordCountText.setAttribute('value', `Words: ${this.wordCount}`);
+          
+          // Simulated pace changes
+          if (Math.random() > 0.9) {
+            const paces = ['Slow', 'Normal', 'Fast'];
+            const pacesColors = ['#90ee90', '#ffffff', '#ff9999'];
+            const paceIndex = Math.floor(Math.random() * 3);
+            this.paceLevel = paces[paceIndex];
+            this.paceText.setAttribute('value', `Pace: ${this.paceLevel}`);
+            this.paceText.setAttribute('color', pacesColors[paceIndex]);
+          }
+          
+          // Simulated engagement changes
+          this.engagement += (Math.random() - 0.5) * 5;
+          this.engagement = Math.max(0, Math.min(100, this.engagement));
+          this.engagementText.setAttribute('value', `Engagement: ${Math.round(this.engagement)}%`);
+          
+          // Change color based on engagement level
+          if (this.engagement > 80) {
+            this.engagementText.setAttribute('color', '#90ee90'); // Light green
+          } else if (this.engagement > 50) {
+            this.engagementText.setAttribute('color', '#ffffff'); // White
+          } else {
+            this.engagementText.setAttribute('color', '#ff9999'); // Light red
+          }
+        }, 3000);
+      },
+      
+      updateTimer: function() {
+        const minutes = Math.floor(this.timerSeconds / 60);
+        const seconds = this.timerSeconds % 60;
+        const timeStr = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        this.timerText.setAttribute('value', `Time: ${timeStr}`);
+      },
+      
+      remove: function() {
+        // Clean up intervals when component is removed
+        if (this.timerInterval) clearInterval(this.timerInterval);
+        if (this.statsInterval) clearInterval(this.statsInterval);
+      }
+    });
+    
+    // Slide controller component to handle visual aids
+    AFRAME.registerComponent('presentation-controls', {
+      schema: {
+        maxSlides: {type: 'number', default: 10}
+      },
+      
+      init: function() {
+        this.slideContainer = null;
+        this.currentSlide = 0;
+        this.totalSlides = 5; // Default number of slides
+        this.notesVisible = false;
+        
+        this.createControls();
+        this.createSlideContainer();
+        this.createDefaultSlides();
+        this.setupKeyboardControls();
+        this.createSpeakerNotes();
+      },
+      
+      createControls: function() {
+        // Create a control panel that follows the user's view
+        const controlPanel = document.createElement('a-entity');
+        controlPanel.setAttribute('position', {x: 0, y: 0, z: -1}); // Changed from y:0.1
+        controlPanel.setAttribute('rotation', {x: -20, y: 0, z: 0}); // Changed from -30
+        // Previous slide button
+        const prevButton = document.createElement('a-plane');
+        prevButton.setAttribute('position', {x: -0.15, y: 0, z: 0});
+        prevButton.setAttribute('width', 0.1);
+        prevButton.setAttribute('height', 0.1);
+        prevButton.setAttribute('color', '#444');
+        prevButton.classList.add('clickable');
+        
+        const prevIcon = document.createElement('a-text');
+        prevIcon.setAttribute('value', '<');
+        prevIcon.setAttribute('align', 'center');
+        prevIcon.setAttribute('position', {x: 0, y: 0, z: 0.01});
+        prevIcon.setAttribute('color', 'white');
+        prevIcon.setAttribute('scale', {x: 2, y: 2, z: 2});
+        prevButton.appendChild(prevIcon);
+        
+        // Next slide button
+        const nextButton = document.createElement('a-plane');
+        nextButton.setAttribute('position', {x: 0.15, y: 0, z: 0});
+        nextButton.setAttribute('width', 0.1);
+        nextButton.setAttribute('height', 0.1);
+        nextButton.setAttribute('color', '#444');
+        nextButton.classList.add('clickable');
+        
+        const nextIcon = document.createElement('a-text');
+        nextIcon.setAttribute('value', '>');
+        nextIcon.setAttribute('align', 'center');
+        nextIcon.setAttribute('position', {x: 0, y: 0, z: 0.01});
+        nextIcon.setAttribute('color', 'white');
+        nextIcon.setAttribute('scale', {x: 2, y: 2, z: 2});
+        nextButton.appendChild(nextIcon);
+        
+        // Notes toggle button
+        const notesButton = document.createElement('a-plane');
+        notesButton.setAttribute('position', {x: 0, y: -0.15, z: 0});
+        notesButton.setAttribute('width', 0.25);
+        notesButton.setAttribute('height', 0.1);
+        notesButton.setAttribute('color', '#444');
+        notesButton.classList.add('clickable');
+        
+        const notesText = document.createElement('a-text');
+        notesText.setAttribute('value', 'Toggle Notes');
+        notesText.setAttribute('align', 'center');
+        notesText.setAttribute('position', {x: 0, y: 0, z: 0.01});
+        notesText.setAttribute('color', 'white');
+        notesText.setAttribute('width', 1);
+        notesButton.appendChild(notesText);
+        
+        // Add event listeners
+        prevButton.addEventListener('click', () => {
+          this.prevSlide();
+        });
+        
+        nextButton.addEventListener('click', () => {
+          this.nextSlide();
+        });
+        
+        notesButton.addEventListener('click', () => {
+          this.toggleNotes();
+        });
+        
+        // Add to control panel
+        controlPanel.appendChild(prevButton);
+        controlPanel.appendChild(nextButton);
+        controlPanel.appendChild(notesButton);
+        
+        // Add slide counter
+        this.slideCounter = document.createElement('a-text');
+        this.slideCounter.setAttribute('position', {x: 0, y: 0.15, z: 0});
+        this.slideCounter.setAttribute('align', 'center');
+        this.slideCounter.setAttribute('color', 'white');
+        this.slideCounter.setAttribute('value', '1 / 5');
+        this.slideCounter.setAttribute('width', 0.5);
+        controlPanel.appendChild(this.slideCounter);
+        
+        this.el.appendChild(controlPanel);
+      },
+      
+      createSlideContainer: function() {
+        this.slideContainer = document.createElement('a-entity');
+        this.slideContainer.setAttribute('position', {x: 0, y: 1.6, z: -4});
+        this.el.appendChild(this.slideContainer);
+      },
+      
+      createDefaultSlides: function() {
+        const titles = [
+          'Introduction to Public Speaking',
+          'Understanding Your Audience',
+          'Structuring Your Presentation',
+          'Effective Visual Aids',
+          'Q&A Handling Techniques'
+        ];
+        
+        const contents = [
+          'Why public speaking matters\n• Career advancement\n• Leadership development\n• Personal growth',
+          'Audience Analysis Factors:\n• Demographics\n• Knowledge level\n• Expectations\n• Environment',
+          'The 3-Part Structure:\n• Tell them what you\'ll tell them\n• Tell them\n• Tell them what you told them',
+          'Visual Aid Best Practices:\n• Simple and clear\n• Relevant imagery\n• Limited text\n• Consistent design',
+          'Q&A Strategies:\n• Anticipate questions\n• Listen carefully\n• Keep answers concise\n• Follow up offline when needed'
+        ];
+        
+        this.totalSlides = titles.length;
+        
+        for (let i = 0; i < this.totalSlides; i++) {
+          this.createSlide(i, titles[i], contents[i]);
+        }
+        
+        this.updateSlideCounter();
+      },
+      
+      createSlide: function(index, title, content) {
+        const slide = document.createElement('a-entity');
+        slide.setAttribute('id', `slide-${index}`);
+        slide.setAttribute('visible', index === this.currentSlide);
+        
+        // Slide background
+        const background = document.createElement('a-plane');
+        background.setAttribute('width', 4);
+        background.setAttribute('height', 2.4);
+        background.setAttribute('color', 'white');
+        background.setAttribute('shader', 'flat');
+        slide.appendChild(background);
+        
+        // Add a decorative border
+        const border = document.createElement('a-plane');
+        border.setAttribute('width', 4.1);
+        border.setAttribute('height', 2.5);
+        border.setAttribute('color', '#1a75ff');
+        border.setAttribute('position', {x: 0, y: 0, z: -0.01});
+        border.setAttribute('shader', 'flat');
+        slide.appendChild(border);
+        
+        // Title
+        const titleText = document.createElement('a-text');
+        titleText.setAttribute('value', title);
+        titleText.setAttribute('align', 'center');
+        titleText.setAttribute('position', {x: 0, y: 0.9, z: 0.01});
+        titleText.setAttribute('color', '#1a75ff');
+        titleText.setAttribute('width', 3.5);
+        titleText.setAttribute('shader', 'flat');
+        slide.appendChild(titleText);
+        
+        // Content
+        const contentText = document.createElement('a-text');
+        contentText.setAttribute('value', content);
+        contentText.setAttribute('align', 'left');
+        contentText.setAttribute('position', {x: -1.8, y: 0, z: 0.01});
+        contentText.setAttribute('color', '#333');
+        contentText.setAttribute('width', 3.6);
+        contentText.setAttribute('shader', 'flat');
+        slide.appendChild(contentText);
+        
+        // Slide number
+        const slideNumber = document.createElement('a-text');
+        slideNumber.setAttribute('value', `${index + 1}`);
+        slideNumber.setAttribute('align', 'right');
+        slideNumber.setAttribute('position', {x: 1.9, y: -1.1, z: 0.01});
+        slideNumber.setAttribute('color', '#666');
+        slideNumber.setAttribute('width', 1);
+        slideNumber.setAttribute('shader', 'flat');
+        slide.appendChild(slideNumber);
+        
+        this.slideContainer.appendChild(slide);
+      },
+      
+      createSpeakerNotes: function() {
+        const notes = [
+          'Opening: Introduce yourself and establish credibility.\nStory: Share personal experience about your first speech.',
+          'Polling: Ask audience about their experiences.\nReference: Mention the Harvard study on audience engagement.',
+          'Activity: Have participants outline a simple 3-minute speech.\nEmphasis: Structure is the backbone of clarity.',
+          'Demo: Show before/after examples of slide design.\nTip: Remind about the 6x6 rule (max 6 bullet points, 6 words each).',
+          'Suggestion: Prepare a "pocket example" for tough questions.\nActivity: Practice the "bridge" technique for redirecting questions.'
+        ];
+        
+        // Create notes container
+        this.notesPanel = document.createElement('a-entity');
+        this.notesPanel.setAttribute('position', {x: 0, y: 0.4, z: -1.5});
+        this.notesPanel.setAttribute('visible', false);
+        
+        // Notes background
+        const notesBg = document.createElement('a-plane');
+        notesBg.setAttribute('width', 1.2);
+        notesBg.setAttribute('height', 0.6);
+        notesBg.setAttribute('color', '#f0f0f0');
+        notesBg.setAttribute('opacity', 0.9);
+        this.notesPanel.appendChild(notesBg);
+        
+        // Title
+        const notesTitle = document.createElement('a-text');
+        notesTitle.setAttribute('value', 'Speaker Notes');
+        notesTitle.setAttribute('align', 'center');
+        notesTitle.setAttribute('position', {x: 0, y: 0.25, z: 0.01});
+        notesTitle.setAttribute('color', '#333');
+        notesTitle.setAttribute('width', 1);
+        this.notesPanel.appendChild(notesTitle);
+        
+        // Create notes for each slide
+        this.slideNotes = [];
+        for (let i = 0; i < notes.length; i++) {
+          const noteText = document.createElement('a-text');
+          noteText.setAttribute('value', notes[i]);
+          noteText.setAttribute('align', 'left');
+          noteText.setAttribute('position', {x: -0.55, y: 0, z: 0.01});
+          noteText.setAttribute('color', '#333');
+          noteText.setAttribute('width', 1.1);
+          noteText.setAttribute('visible', i === this.currentSlide);
+          this.notesPanel.appendChild(noteText);
+          this.slideNotes.push(noteText);
+        }
+        
+        this.el.appendChild(this.notesPanel);
+      },
+      
+      setupKeyboardControls: function() {
+        this.keydownHandler = this.handleKeydown.bind(this);
+        document.addEventListener('keydown', this.keydownHandler);
+      },
+      
+      handleKeydown: function(e) {
+        if (e.code === 'ArrowRight' || e.code === 'Space') {
+          this.nextSlide();
+        } else if (e.code === 'ArrowLeft') {
+          this.prevSlide();
+        } else if (e.code === 'KeyN') {
+          this.toggleNotes();
+        }
+      },
+      
+      nextSlide: function() {
+        if (this.currentSlide < this.totalSlides - 1) {
+          document.querySelector(`#slide-${this.currentSlide}`).setAttribute('visible', false);
+          if (this.slideNotes[this.currentSlide]) {
+            this.slideNotes[this.currentSlide].setAttribute('visible', false);
+          }
+          
+          this.currentSlide++;
+          
+          document.querySelector(`#slide-${this.currentSlide}`).setAttribute('visible', true);
+          if (this.slideNotes[this.currentSlide]) {
+            this.slideNotes[this.currentSlide].setAttribute('visible', true);
+          }
+          
+          this.updateSlideCounter();
+        }
+      },
+      
+      prevSlide: function() {
+        if (this.currentSlide > 0) {
+          document.querySelector(`#slide-${this.currentSlide}`).setAttribute('visible', false);
+          if (this.slideNotes[this.currentSlide]) {
+            this.slideNotes[this.currentSlide].setAttribute('visible', false);
+          }
+          
+          this.currentSlide--;
+          
+          document.querySelector(`#slide-${this.currentSlide}`).setAttribute('visible', true);
+          if (this.slideNotes[this.currentSlide]) {
+            this.slideNotes[this.currentSlide].setAttribute('visible', true);
+          }
+          
+          this.updateSlideCounter();
+        }
+      },
+      
+      toggleNotes: function() {
+        this.notesVisible = !this.notesVisible;
+        this.notesPanel.setAttribute('visible', this.notesVisible);
+      },
+      
+      updateSlideCounter: function() {
+        this.slideCounter.setAttribute('value', `${this.currentSlide + 1} / ${this.totalSlides}`);
+      },
+      
+      remove: function() {
+        // Clean up event listeners when component is removed
+        document.removeEventListener('keydown', this.keydownHandler);
+      }
+    });
+    
+    // Gesture visualization component
+    AFRAME.registerComponent('gesture-visualizer', {
+      init: function() {
+        this.createGestureVisualizer();
+        this.setupMouseTracking();
+      },
+      
+      createGestureVisualizer: function() {
+        // Create a simple laser pointer for gestures
+        this.pointer = document.createElement('a-entity');
+        this.pointer.setAttribute('position', {x: 0, y: 0, z: 0});
+        
+        // Laser beam
+        this.beam = document.createElement('a-entity');
+        this.beam.setAttribute('line', 'start: 0 0 0; end: 0 0 -10; color: #ff4444');
+        this.pointer.appendChild(this.beam);
+        
+        // Cursor at the end of beam
+        this.cursor = document.createElement('a-sphere');
+        this.cursor.setAttribute('position', {x: 0, y: 0, z: -10});
+        this.cursor.setAttribute('radius', 0.05);
+        this.cursor.setAttribute('color', '#ff4444');
+        this.pointer.appendChild(this.cursor);
+        
+        // Add to scene
+        this.el.appendChild(this.pointer);
+        
+        // Hide initially, show on trigger
+        this.pointer.setAttribute('visible', false);
+      },
+      
+      setupMouseTracking: function() {
+        // Track mouse movement for desktop
+        this.mousemoveHandler = this.handleMouseMove.bind(this);
+        this.mousedownHandler = this.handleMouseDown.bind(this);
+        this.mouseupHandler = this.handleMouseUp.bind(this);
+        
+        document.addEventListener('mousemove', this.mousemoveHandler);
+        document.addEventListener('mousedown', this.mousedownHandler);
+        document.addEventListener('mouseup', this.mouseupHandler);
+      },
+      
+      handleMouseMove: function(e) {
+        // Only show when mouse button is pressed
+        if (e.buttons === 1) {
+          const camera = document.querySelector('[camera]');
+          if (camera) {
+            const cameraEl = camera.object3D;
+            const direction = new THREE.Vector3(0, 0, -1);
+            direction.applyQuaternion(cameraEl.quaternion);
+            
+            // Update beam direction
+            const endPoint = new THREE.Vector3()
+              .copy(direction)
+              .multiplyScalar(10)
+              .add(cameraEl.position);
+            
+            this.beam.setAttribute('line', `start: 0 0 0; end: 0 0 -10; color: #ff4444`);
+            this.cursor.setAttribute('position', {x: 0, y: 0, z: -10});
+            
+            this.pointer.setAttribute('visible', true);
+            this.pointer.object3D.position.copy(cameraEl.position);
+            this.pointer.object3D.quaternion.copy(cameraEl.quaternion);
+          }
+        } else {
+          this.pointer.setAttribute('visible', false);
+        }
+      },
+      
+      handleMouseDown: function(e) {
+        if (e.button === 0) { // Left mouse button
+          const camera = document.querySelector('[camera]');
+          if (camera) {
+            this.pointer.setAttribute('visible', true);
+            this.pointer.object3D.position.copy(camera.object3D.position);
+            this.pointer.object3D.quaternion.copy(camera.object3D.quaternion);
+          }
+        }
+      },
+      
+      handleMouseUp: function() {
+        this.pointer.setAttribute('visible', false);
+      },
+      
+      remove: function() {
+        // Clean up event listeners when component is removed
+        document.removeEventListener('mousemove', this.mousemoveHandler);
+        document.removeEventListener('mousedown', this.mousedownHandler);
+        document.removeEventListener('mouseup', this.mouseupHandler);
+      }
+    });
+    
+    // Session recorder component
+    AFRAME.registerComponent('session-recorder', {
+      init: function() {
+        this.isRecording = false;
+        this.recordingStartTime = 0;
+        this.recordingDuration = 0;
+        
+        this.createRecordingControls();
+      },
+      
+      createRecordingControls: function() {
+        // Create recording control panel
+        const controlPanel = document.createElement('a-entity');
+        controlPanel.setAttribute('position', {x: -1.5, y: 1.7, z: -1});
+        controlPanel.setAttribute('rotation', {x: 0, y: 45, z: 0});
+        
+        // Background
+        const bg = document.createElement('a-plane');
+        bg.setAttribute('width', 0.6);
+        bg.setAttribute('height', 0.3);
+        bg.setAttribute('color', '#333');
+        bg.setAttribute('opacity', 0.8);
+        controlPanel.appendChild(bg);
+        
+        // Record button
+        this.recordButton = document.createElement('a-plane');
+        this.recordButton.setAttribute('position', {x: 0, y: 0.07, z: 0.01});
+        this.recordButton.setAttribute('width', 0.4);
+        this.recordButton.setAttribute('height', 0.15);
+        this.recordButton.setAttribute('color', '#d10000');
+        this.recordButton.classList.add('clickable');
+        
+        const recordText = document.createElement('a-text');
+        recordText.setAttribute('value', 'RECORD');
+        recordText.setAttribute('align', 'center');
+        recordText.setAttribute('position', {x: 0, y: 0, z: 0.01});
+        recordText.setAttribute('color', 'white');
+        recordText.setAttribute('width', 1);
+        this.recordButton.appendChild(recordText);
+        
+        // Recording indicator
+        this.recordingStatus = document.createElement('a-text');
+        this.recordingStatus.setAttribute('value', 'Ready');
+        this.recordingStatus.setAttribute('align', 'center');
+        this.recordingStatus.setAttribute('position', {x: 0, y: -0.07, z: 0.01});
+        this.recordingStatus.setAttribute('color', 'white');
+        this.recordingStatus.setAttribute('width', 1);
+        
+        // Add event listener
+        this.recordButton.addEventListener('click', () => {
+          this.toggleRecording();
+        });
+        
+        controlPanel.appendChild(this.recordButton);
+        controlPanel.appendChild(this.recordingStatus);
+        this.el.appendChild(controlPanel);
+      },
+      
+      toggleRecording: function() {
+        this.isRecording = !this.isRecording;
+        
+        if (this.isRecording) {
+          // Start recording
+          this.recordingStartTime = Date.now();
+          this.recordButton.setAttribute('color', '#00d100'); // Green
+          this.recordingStatus.setAttribute('value', 'Recording...');
+          
+          // Simulate recording with timer updates
+          this.recordingInterval = setInterval(() => {
+            const elapsedSeconds = Math.floor((Date.now() - this.recordingStartTime) / 1000);
+            const minutes = Math.floor(elapsedSeconds / 60);
+            const seconds = elapsedSeconds % 60;
+            this.recordingStatus.setAttribute('value', `Recording: ${minutes}:${seconds.toString().padStart(2, '0')}`);
+          }, 1000);
+        } else {
+          // Stop recording
+          clearInterval(this.recordingInterval);
+          this.recordingDuration = (Date.now() - this.recordingStartTime) / 1000;
+          this.recordButton.setAttribute('color', '#d10000'); // Red
+          this.recordingStatus.setAttribute('value', `Recorded: ${Math.floor(this.recordingDuration / 60)}:${Math.floor(this.recordingDuration % 60).toString().padStart(2, '0')}`);
+        }
+      },
+      
+      remove: function() {
+        // Clean up intervals when component is removed
+        if (this.recordingInterval) clearInterval(this.recordingInterval);
+      }
+    });
+    
+    // User settings component
+    AFRAME.registerComponent('user-settings', {
+      init: function() {
+        this.createSettingsPanel();
+      },
+      
+      createSettingsPanel: function() {
+        // Settings panel container
+        const settingsPanel = document.createElement('a-entity');
+        settingsPanel.setAttribute('position', {x: 0, y: 1.7, z: -1.2});
+        settingsPanel.setAttribute('rotation', {x: 0, y: 0, z: 0});
+        settingsPanel.setAttribute('visible', false);
+        settingsPanel.id = 'settings-panel';
+        
+        // Background
+        const bg = document.createElement('a-plane');
+        bg.setAttribute('width', 1.2);
+        bg.setAttribute('height', 1);
+        bg.setAttribute('color', '#333');
+        bg.setAttribute('opacity', 0.9);
+        settingsPanel.appendChild(bg);
+        
+        // Title
+        const title = document.createElement('a-text');
+        title.setAttribute('value', 'Settings');
+        title.setAttribute('align', 'center');
+        title.setAttribute('position', {x: 0, y: 0.4, z: 0.01});
+        title.setAttribute('color', 'white');
+        title.setAttribute('width', 1);
+        settingsPanel.appendChild(title);
+        
+        // Audience size slider
+        const sizeLabel = document.createElement('a-text');
+        sizeLabel.setAttribute('value', 'Audience Size');
+        sizeLabel.setAttribute('align', 'left');
+        sizeLabel.setAttribute('position', {x: -0.5, y: 0.25, z: 0.01});
+        sizeLabel.setAttribute('color', 'white');
+        sizeLabel.setAttribute('width', 1);
+        settingsPanel.appendChild(sizeLabel);
+        
+        const sizeSlider = document.createElement('a-plane');
+        sizeSlider.setAttribute('position', {x: 0, y: 0.15, z: 0.01});
+        sizeSlider.setAttribute('width', 0.8);
+        sizeSlider.setAttribute('height', 0.05);
+        sizeSlider.setAttribute('color', '#666');
+        settingsPanel.appendChild(sizeSlider);
+        
+        const sizeHandle = document.createElement('a-box');
+        sizeHandle.setAttribute('position', {x: 0.2, y: 0, z: 0.01});
+        sizeHandle.setAttribute('width', 0.05);
+        sizeHandle.setAttribute('height', 0.1);
+        sizeHandle.setAttribute('depth', 0.01);
+        sizeHandle.setAttribute('color', '#1a75ff');
+        sizeHandle.setAttribute('class', 'clickable');
+        sizeSlider.appendChild(sizeHandle);
+        
+        // Engagement level slider
+        const engageLabel = document.createElement('a-text');
+        engageLabel.setAttribute('value', 'Engagement Level');
+        engageLabel.setAttribute('align', 'left');
+        engageLabel.setAttribute('position', {x: -0.5, y: 0, z: 0.01});
+        engageLabel.setAttribute('color', 'white');
+        engageLabel.setAttribute('width', 1);
+        settingsPanel.appendChild(engageLabel);
+        
+        const engageSlider = document.createElement('a-plane');
+        engageSlider.setAttribute('position', {x: 0, y: -0.1, z: 0.01});
+        engageSlider.setAttribute('width', 0.8);
+        engageSlider.setAttribute('height', 0.05);
+        engageSlider.setAttribute('color', '#666');
+        settingsPanel.appendChild(engageSlider);
+        
+        const engageHandle = document.createElement('a-box');
+        engageHandle.setAttribute('position', {x: 0, y: 0, z: 0.01});
+        engageHandle.setAttribute('width', 0.05);
+        engageHandle.setAttribute('height', 0.1);
+        engageHandle.setAttribute('depth', 0.01);
+        engageHandle.setAttribute('color', '#1a75ff');
+        engageHandle.setAttribute('class', 'clickable');
+        engageSlider.appendChild(engageHandle);
+        
+        // Close button
+        const closeBtn = document.createElement('a-plane');
+        closeBtn.setAttribute('position', {x: 0, y: -0.35, z: 0.01});
+        closeBtn.setAttribute('width', 0.3);
+        closeBtn.setAttribute('height', 0.1);
+        closeBtn.setAttribute('color', '#d10000');
+        closeBtn.classList.add('clickable');
+        
+        const closeText = document.createElement('a-text');
+        closeText.setAttribute('value', 'Close');
+        closeText.setAttribute('align', 'center');
+        closeText.setAttribute('position', {x: 0, y: 0, z: 0.01});
+        closeText.setAttribute('color', 'white');
+        closeText.setAttribute('width', 1);
+        closeBtn.appendChild(closeText);
+        
+        closeBtn.addEventListener('click', () => {
+          settingsPanel.setAttribute('visible', false);
+        });
+        
+        settingsPanel.appendChild(closeBtn);
+        
+        // Settings button to show the panel
+        const settingsBtn = document.createElement('a-entity');
+        settingsBtn.setAttribute('position', {x: -1.5, y: 1.2, z: -1});
+        settingsBtn.setAttribute('rotation', {x: 0, y: 45, z: 0});
+        
+        const settingsBtnBg = document.createElement('a-plane');
+        settingsBtnBg.setAttribute('width', 0.3);
+        settingsBtnBg.setAttribute('height', 0.1);
+        settingsBtnBg.setAttribute('color', '#666');
+        settingsBtnBg.classList.add('clickable');
+        
+        const settingsBtnText = document.createElement('a-text');
+        settingsBtnText.setAttribute('value', 'Settings');
+        settingsBtnText.setAttribute('align', 'center');
+        settingsBtnText.setAttribute('position', {x: 0, y: 0, z: 0.01});
+        settingsBtnText.setAttribute('color', 'white');
+        settingsBtnText.setAttribute('width', 1);
+        settingsBtnBg.appendChild(settingsBtnText);
+        
+        settingsBtnBg.addEventListener('click', () => {
+          const panel = document.getElementById('settings-panel');
+          panel.setAttribute('visible', true);
+        });
+        
+        settingsBtn.appendChild(settingsBtnBg);
+        
+        this.el.appendChild(settingsPanel);
+        this.el.appendChild(settingsBtn);
+      }
+    });
+    
+    // Speech feedback component
+    AFRAME.registerComponent('speech-feedback', {
+      init: function() {
+        this.isListening = false;
+        this.createSpeechFeedbackPanel();
+        this.setupSpeechRecognition();
+      },
+      
+      createSpeechFeedbackPanel: function() {
+        // Create feedback panel
+        this.feedbackPanel = document.createElement('a-entity');
+        this.feedbackPanel.setAttribute('position', {x: 1.5, y: 1, z: -1});
+        this.feedbackPanel.setAttribute('rotation', {x: 0, y: -45, z: 0});
+        
+        // Background
+        const bg = document.createElement('a-plane');
+        bg.setAttribute('width', 0.8);
+        bg.setAttribute('height', 0.8);
+        bg.setAttribute('color', '#333');
+        bg.setAttribute('opacity', 0.8);
+        this.feedbackPanel.appendChild(bg);
+        
+        // Title
+        const title = document.createElement('a-text');
+        title.setAttribute('value', 'Speech Feedback');
+        title.setAttribute('align', 'center');
+        title.setAttribute('position', {x: 0, y: 0.3, z: 0.01});
+        title.setAttribute('color', 'white');
+        title.setAttribute('width', 0.7);
+        this.feedbackPanel.appendChild(title);
+        
+        // Live transcription display
+        this.transcriptionText = document.createElement('a-text');
+        this.transcriptionText.setAttribute('value', 'Your speech will appear here...');
+        this.transcriptionText.setAttribute('align', 'left');
+        this.transcriptionText.setAttribute('position', {x: -0.35, y: 0.1, z: 0.01});
+        this.transcriptionText.setAttribute('color', 'white');
+        this.transcriptionText.setAttribute('width', 0.7);
+        this.feedbackPanel.appendChild(this.transcriptionText);
+        
+        // Pace indicator
+        this.paceText = document.createElement('a-text');
+        this.paceText.setAttribute('value', 'Pace: Normal');
+        this.paceText.setAttribute('align', 'left');
+        this.paceText.setAttribute('position', {x: -0.35, y: -0.05, z: 0.01});
+        this.paceText.setAttribute('color', 'white');
+        this.paceText.setAttribute('width', 0.7);
+        this.feedbackPanel.appendChild(this.paceText);
+        
+        // Filler words counter
+        this.fillerText = document.createElement('a-text');
+        this.fillerText.setAttribute('value', 'Filler words: 0');
+        this.fillerText.setAttribute('align', 'left');
+        this.fillerText.setAttribute('position', {x: -0.35, y: -0.15, z: 0.01});
+        this.fillerText.setAttribute('color', 'white');
+        this.fillerText.setAttribute('width', 0.7);
+        this.feedbackPanel.appendChild(this.fillerText);
+        
+        // Start/Stop button
+        this.listenButton = document.createElement('a-plane');
+        this.listenButton.setAttribute('position', {x: 0, y: -0.3, z: 0.01});
+        this.listenButton.setAttribute('width', 0.5);
+        this.listenButton.setAttribute('height', 0.1);
+        this.listenButton.setAttribute('color', '#1a75ff');
+        this.listenButton.classList.add('clickable');
+        
+        this.listenButtonText = document.createElement('a-text');
+        this.listenButtonText.setAttribute('value', 'Start Listening');
+        this.listenButtonText.setAttribute('align', 'center');
+        this.listenButtonText.setAttribute('position', {x: 0, y: 0, z: 0.01});
+        this.listenButtonText.setAttribute('color', 'white');
+        this.listenButtonText.setAttribute('width', 0.7);
+        this.listenButton.appendChild(this.listenButtonText);
+        
+        this.listenButton.addEventListener('click', () => {
+          this.toggleSpeechRecognition();
+        });
+        
+        this.feedbackPanel.appendChild(this.listenButton);
+        this.el.appendChild(this.feedbackPanel);
+      },
+      
+      setupSpeechRecognition: function() {
+        // Check if browser supports speech recognition
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+          this.transcriptionText.setAttribute('value', 'Speech recognition not supported in this browser.');
+          this.listenButton.setAttribute('color', '#999');
+          
+          // Update status display
+          const statusEl = document.getElementById('speech-recognition-status');
+          if (statusEl) {
+            statusEl.textContent = 'Speech Recognition: Not Supported';
+          }
+          return;
+        }
+        
+        // Initialize speech recognition
+        this.recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        this.recognition.continuous = true;
+        this.recognition.interimResults = true;
+        
+        this.fillerWords = ['um', 'uh', 'like', 'you know', 'actually', 'basically', 'literally'];
+        this.fillerCount = 0;
+        this.wordCount = 0;
+        this.lastTimestamp = 0;
+        this.wordsPerMinute = 0;
+        
+        // Speech recognition event handlers
+        this.recognition.onresult = (event) => {
+          let interimTranscript = '';
+          let finalTranscript = '';
+          
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+              this.analyzeSpeech(event.results[i][0].transcript);
+            } else {
+              interimTranscript += event.results[i][0].transcript;
+            }
+          }
+          
+          // Update transcription display with the last few words
+          const transcript = (finalTranscript + interimTranscript).trim();
+          const words = transcript.split(' ');
+          const lastWords = words.slice(-10).join(' ');
+          this.transcriptionText.setAttribute('value', lastWords + '...');
+        };
+        
+        this.recognition.onend = () => {
+          if (this.isListening) {
+            // Restart recognition if it ends but we're still supposed to be listening
+            this.recognition.start();
+          }
+        };
+        
+        this.recognition.onerror = (event) => {
+          console.error('Speech recognition error:', event.error);
+          this.transcriptionText.setAttribute('value', `Error: ${event.error}`);
+          
+          // Update status display
+          const statusEl = document.getElementById('speech-recognition-status');
+          if (statusEl) {
+            statusEl.textContent = `Speech Recognition Error: ${event.error}`;
+          }
+        };
+      },
+      
+      toggleSpeechRecognition: function() {
+        this.isListening = !this.isListening;
+        
+        // Update status display
+        const statusEl = document.getElementById('speech-recognition-status');
+        
+        if (this.isListening) {
+          this.transcriptionText.setAttribute('value', 'Listening...');
+          this.listenButtonText.setAttribute('value', 'Stop Listening');
+          this.listenButton.setAttribute('color', '#d10000');
+          
+          if (statusEl) {
+            statusEl.textContent = 'Speech Recognition: Active';
+          }
+          
+          try {
+            this.recognition.start();
+            this.lastTimestamp = Date.now();
+          } catch (e) {
+            console.error('Speech recognition error:', e);
+            this.transcriptionText.setAttribute('value', 'Error starting speech recognition.');
+            if (statusEl) {
+              statusEl.textContent = 'Speech Recognition: Error';
+            }
+          }
+        } else {
+          this.listenButtonText.setAttribute('value', 'Start Listening');
+          this.listenButton.setAttribute('color', '#1a75ff');
+          this.transcriptionText.setAttribute('value', 'Your speech will appear here...');
+          
+          if (statusEl) {
+            statusEl.textContent = 'Speech Recognition: Inactive';
+          }
+          
+          this.recognition.stop();
+        }
+      },
+      
+      analyzeSpeech: function(text) {
+        // Count words
+        const words = text.trim().split(/\s+/);
+        this.wordCount += words.length;
+        
+        // Calculate speaking pace
+        const now = Date.now();
+        const timeDiff = (now - this.lastTimestamp) / 1000; // in seconds
+        if (timeDiff > 0) {
+          this.wordsPerMinute = Math.round((words.length / timeDiff) * 60);
+          
+          // Update pace indicator
+          let paceStatus, paceColor;
+          if (this.wordsPerMinute < 120) {
+            paceStatus = 'Slow';
+            paceColor = '#90ee90'; // Light green
+          } else if (this.wordsPerMinute <= 160) {
+            paceStatus = 'Normal';
+            paceColor = 'white';
+          } else {
+            paceStatus = 'Fast';
+            paceColor = '#ff9999'; // Light red
+          }
+          
+          this.paceText.setAttribute('value', `Pace: ${paceStatus} (${this.wordsPerMinute} wpm)`);
+          this.paceText.setAttribute('color', paceColor);
+        }
+        
+        // Count filler words
+        for (const word of words) {
+          const lowerWord = word.toLowerCase();
+          if (this.fillerWords.includes(lowerWord)) {
+            this.fillerCount++;
+          }
+        }
+        
+        this.fillerText.setAttribute('value', `Filler words: ${this.fillerCount}`);
+        
+        this.lastTimestamp = now;
+      },
+      
+      remove: function() {
+        // Clean up speech recognition when component is removed
+        if (this.recognition) {
+          this.recognition.stop();
+        }
+      }
+    });
+    
+    // Initialize UI elements when scene is loaded
+    document.querySelector('a-scene').addEventListener('loaded', function() {
+      console.log('VR Public Speaking Trainer loaded successfully');
+      
+      // Hide help after 10 seconds
+      setTimeout(() => {
+        const helpEl = document.getElementById('controls-help');
+        if (helpEl) {
+          helpEl.style.opacity = '0';
+          helpEl.style.transition = 'opacity 1s ease-out';
+          setTimeout(() => {
+            helpEl.style.display = 'none';
+          }, 1000);
+        }
+      }, 10000);
+    });
+  </script>
+</body>
+</html>
+
