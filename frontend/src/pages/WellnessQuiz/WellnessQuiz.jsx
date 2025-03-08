@@ -1,185 +1,172 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Send, Loader, Leaf, RefreshCw } from 'lucide-react';
 import './WellnessQuiz.css';
-import { Play, Pause, MessageCircle } from 'lucide-react';
+import Navbar from '../../components/Navbar/Navbar';
 
-const WellnessQuiz = () => {
-  const [currentStep, setCurrentStep] = useState('quiz');
-  const [answers, setAnswers] = useState({});
-  const [meditationPlaying, setMeditationPlaying] = useState(false);
-  const [showChat, setShowChat] = useState(false);
-  const [timer, setTimer] = useState(600); // 10 minutes in seconds
-  const [activeQuestion, setActiveQuestion] = useState(1);
+const WellnessChatbot = () => {
+  const [messages, setMessages] = useState([
+    {
+      text: "Hello, I'm Serene, your wellness companion. How are you feeling today?",
+      sender: 'bot',
+      timestamp: new Date(),
+    },
+  ]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [sessionId, setSessionId] = useState(() => `session-${Math.random().toString(36).substring(2, 15)}`);
+
+  const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
-    let interval;
-    if (meditationPlaying && timer > 0) {
-      interval = setInterval(() => {
-        setTimer((prev) => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [meditationPlaying, timer]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
-  const questions = [
-    {
-      id: 1,
-      text: "How would you rate your stress level in the past week?",
-      options: ["Very Low", "Low", "Moderate", "High", "Very High"]
-    },
-    {
-      id: 2,
-      text: "How well have you been sleeping lately?",
-      options: ["Very Well", "Well", "Average", "Poorly", "Very Poorly"]
-    },
-    {
-      id: 3,
-      text: "How would you describe your energy levels?",
-      options: ["Excellent", "Good", "Moderate", "Low", "Very Low"]
-    },
-    {
-      id: 4,
-      text: "How often do you feel overwhelmed?",
-      options: ["Never", "Rarely", "Sometimes", "Often", "Always"]
-    },
-    {
-      id: 5,
-      text: "How would you rate your overall mood?",
-      options: ["Excellent", "Good", "Neutral", "Poor", "Very Poor"]
-    }
-  ];
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!input.trim()) return;
 
-  const handleAnswer = (questionId, answer) => {
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: answer
-    }));
-    if (questionId < questions.length) {
-      setActiveQuestion(questionId + 1);
+    const userMessage = { text: input, sender: 'user', timestamp: new Date() };
+    setMessages((prev) => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('http://127.0.0.1:8000/wellness-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: input, session_id: sessionId }),
+      });
+
+      const data = await response.json();
+
+      if (data.session_id) setSessionId(data.session_id);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: typeof data.response === 'string' ? data.response : JSON.stringify(data.response.response),
+          sender: 'bot',
+          timestamp: new Date(),
+        },
+      ]);
+    } catch (error) {
+      console.error('Error:', error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: "I'm having trouble connecting right now. Please try again in a moment.",
+          sender: 'bot',
+          error: true,
+          timestamp: new Date(),
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleSubmit = () => {
-    const results = analyzeAnswers(answers);
-    setCurrentStep('results');
+  const resetChat = () => {
+    setSessionId(`session-${Math.random().toString(36).substring(2, 15)}`);
+    setMessages([
+      {
+        text: "Hello, I'm Serene, your wellness companion. How are you feeling today?",
+        sender: 'bot',
+        timestamp: new Date(),
+      },
+    ]);
   };
 
-  const analyzeAnswers = (answers) => {
-    return {
-      stressLevel: "moderate",
-      recommendedMeditation: "Mindful Breathing",
-      duration: "10 minutes"
-    };
-  };
-
-  const toggleMeditation = () => {
-    setMeditationPlaying(!meditationPlaying);
-  };
-
-  const renderQuiz = () => (
-    <div className="quiz-section">
-      <h2>Wellness Assessment</h2>
-      <div className="questions-container">
-        {questions.map(question => (
-          <div 
-            key={question.id} 
-            className="question-card"
-            style={{
-              opacity: question.id === activeQuestion ? 1 : 0.6,
-              transform: question.id === activeQuestion ? 'scale(1)' : 'scale(0.98)'
-            }}
-          >
-            <p>{question.text}</p>
-            <div className="options-grid">
-              {question.options.map(option => (
-                <button
-                  key={option}
-                  className={`option-button ${answers[question.id] === option ? 'selected' : ''}`}
-                  onClick={() => handleAnswer(question.id, option)}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-      <button 
-        className="submit-button"
-        onClick={handleSubmit}
-        disabled={Object.keys(answers).length !== questions.length}
-      >
-        Submit Assessment
-      </button>
-    </div>
-  );
-
-  const renderResults = () => (
-    <div className="results-section">
-      <h2>Your Wellness Analysis</h2>
-      <div className="results-card">
-        <h3>Recommendations</h3>
-        <p>Based on your responses, we recommend:</p>
-        <ul>
-          <li>10-minute mindful breathing meditation</li>
-          <li>Regular stress management exercises</li>
-          <li>Sleep hygiene improvements</li>
-        </ul>
-        <button 
-          className="meditation-button"
-          onClick={() => setCurrentStep('meditation')}
-        >
-          Start Meditation
-        </button>
-      </div>
-    </div>
-  );
-
-  const renderMeditation = () => (
-    <div className="meditation-section">
-      <div className="meditation-card">
-        <h2>Mindful Breathing Meditation</h2>
-        <div className="meditation-controls">
-          <button 
-            className="control-button"
-            onClick={toggleMeditation}
-          >
-            {meditationPlaying ? <Pause size={28} /> : <Play size={28} />}
-          </button>
-          <span>{meditationPlaying ? "Pause" : "Start"} Meditation</span>
-        </div>
-        <div className="meditation-timer">{formatTime(timer)}</div>
-      </div>
-      <button 
-        className="chat-button"
-        onClick={() => setShowChat(!showChat)}
-      >
-        <MessageCircle size={24} />
-        Chat Support
-      </button>
-      {showChat && (
-        <div className="chat-widget">
-          <h3>Wellness Support</h3>
-          <div className="chat-messages">
-            <p className="bot-message">How can I help you with your wellness journey?</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  const formatTime = (date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   return (
-    <div className="wellness-container">
-      {currentStep === 'quiz' && renderQuiz()}
-      {currentStep === 'results' && renderResults()}
-      {currentStep === 'meditation' && renderMeditation()}
+    <div className="flex flex-col h-screen bg-gradient-to-br from-green-50 to-teal-50">
+      <Navbar/>
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 flex items-center p-4 bg-green-200 bg-opacity-80 border-b border-green-100 shadow-sm z-10 mt-16">
+        <div className="bg-green-100 p-2 rounded-full mr-3">
+          <Leaf className="h-6 w-6 text-green-600" />
+        </div>
+        <div>
+          <h1 className="text-xl font-semibold text-green-800">Serene</h1>
+          <p className="text-sm text-green-600">Your Wellness Companion</p>
+        </div>
+        <button
+          onClick={resetChat}
+          className="ml-auto cursor-pointer flex items-center gap-1 text-sm text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1 rounded-full transition-colors"
+        >
+          <RefreshCw className="h-3 w-3" />
+          New Conversation
+        </button>
+      </header>
+
+      {/* Chat container */}
+      <div className="flex-1 overflow-y-auto p-4 pt-20 bg-white bg-opacity-30 mt-16">
+        <div className="max-w-3xl mx-auto space-y-4">
+          {messages.map((message, index) => (
+            <div key={index} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-xs sm:max-w-sm md:max-w-md rounded-2xl px-4 py-3 ${
+                  message.sender === 'user'
+                    ? 'bg-green-600 text-white rounded-tr-none'
+                    : message.error
+                    ? 'bg-red-50 text-red-800 rounded-tl-none border border-red-100'
+                    : 'bg-white bg-opacity-90 text-green-900 rounded-tl-none border border-green-100'
+                }`}
+              >
+                <div className="text-sm">{message.text}</div>
+                <div className={`text-xs mt-1 text-right ${message.sender === 'user' ? 'text-green-100' : 'text-green-500'}`}>
+                  {formatTime(message.timestamp)}
+                </div>
+              </div>
+            </div>
+          ))}
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-white bg-opacity-90 text-green-900 rounded-2xl rounded-tl-none border border-green-100 px-4 py-3">
+                <div className="flex items-center">
+                  <Loader className="h-4 w-4 text-green-500 animate-spin mr-2" />
+                  <span className="text-sm text-green-600">Serene is thinking...</span>
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+
+      {/* Input area */}
+      <div className="p-4 bg-white bg-opacity-80 border-t border-green-100 mb-16">
+        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+          <div className="relative">
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Share your thoughts or ask for wellness guidance..."
+              className="w-full py-3 pl-4 pr-12 rounded-full border border-green-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              disabled={isLoading}
+            />
+            <button
+              type="submit"
+              disabled={isLoading || !input.trim()}
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 bg-green-500 rounded-full text-white hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </div>
+          <p className="text-xs text-green-600 text-center mt-2">
+            Serene is here to support your wellbeing journey, not to replace professional care.
+          </p>
+        </form>
+      </div>
     </div>
   );
 };
 
-export default WellnessQuiz;
+export default WellnessChatbot;

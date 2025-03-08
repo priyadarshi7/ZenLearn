@@ -11,7 +11,7 @@ const Navbar = () => {
 
   const { loginWithRedirect, isAuthenticated, logout, user } = useAuth0();
 
-  const pages = ["Meditation", "Speaking Dojo", "Communities", "Courses", "AI Assistant"];
+  const pages = ["Meditation", "Speaking Dojo", "Communities", "Courses", "AI Assistant", "Serene AI"];
   const settings = ["Profile", "Account", "Dashboard", "Logout"];
   const services = ["Consulting", "Development", "Design", "Marketing"];
 
@@ -137,7 +137,7 @@ const Navbar = () => {
                     {setting}
                   </button>
                 ) : (
-                  <a key={setting} href={`/user/${setting.toLowerCase()}`} className="dropdown-item">
+                  <a key={setting} href={`/${setting.toLowerCase()}`} className="dropdown-item">
                     {setting}
                   </a>
                 )

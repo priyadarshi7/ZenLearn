@@ -80,6 +80,7 @@ const CourseList = ({ courses }) => {
         color:"white",
         fontWeight:"800",
         fontFamily:'zen',
+        marginBottom:"10px"
       }}>Take Our Quiz Based Course Recommendation</Button></NavLink>
       <SearchBar onSearch={handleSearch} />
 
