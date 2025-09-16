@@ -47,7 +47,7 @@ The frontend should now be running on `http://localhost:3000` (or another availa
    ```
 3. Start the backend server using Nodemon:
    ```sh
-   nodemon index.js
+   npm run dev
    ```
 
 ### Python Backend Services (FastAPI)
@@ -75,7 +75,7 @@ Each module (meditation, chatbot, stress, VR) runs as a separate FastAPI backend
 | VR           | `/vr`               | VR experience APIs |
 
 Each FastAPI service has its own `docs` endpoint for testing:
-- Example: `http://localhost:8001/docs`
+- Example: `http://localhost:8000/docs`
 
 ---
 
