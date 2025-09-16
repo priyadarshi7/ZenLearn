@@ -750,63 +750,6 @@ const coursesData = [
       learning_style: ["Practical", "Self-assessment", "Habit-building"],
       accessibility_features: ["Dietary Modification Options", "Adaptive Exercise Plans"],
     },
-    {
-      course_id: "MUS210",
-      title: "Music Theory and Composition",
-      description: "Learn fundamental music theory concepts and apply them to original compositions.",
-      instructor: {
-        name: "Dr. Quincy Jones",
-        rating: 4.9,
-        expertise: ["Music Theory", "Composition", "Jazz", "Classical"],
-        years_teaching: 40,
-      },
-      department: "Music",
-      level: "Intermediate",
-      difficulty: "hard",
-      prerequisites: ["MUS110"],
-      credits: 3,
-      duration_weeks: 12,
-      hours_per_week: 8,
-      format: "Hybrid",
-      language: "English",
-      tags: ["Music", "Composition", "Theory", "Creative Arts", "Performing Arts", "Harmony", "Songwriting"],
-      skills_gained: ["Music Analysis", "Composition", "Ear Training", "Notation", "Arrangement", "Score Reading"],
-      topics: ["Harmony", "Melody", "Rhythm", "Form", "Counterpoint", "Orchestration", "Genre Analysis", "Modulation"],
-      rating: 4.8,
-      total_ratings: 456,
-      reviews: [
-        {
-          user_id: "u90123",
-          rating: 5,
-          comment: "Dr. Jones is a legend. His insights and feedback on my compositions were invaluable.",
-          date: "2024-09-25",
-        },
-        {
-          user_id: "u56789",
-          rating: 5,
-          comment:
-            "Perfect balance of theory and practical application. The composition projects were challenging but fun.",
-          date: "2024-08-20",
-        },
-      ],
-      price: {
-        amount: 449.99,
-        currency: "USD",
-        payment_options: ["One-time", "Installment"],
-      },
-      certification: true,
-      completion_rate: 0.82,
-      difficulty_rating: 3.4,
-      last_updated: "2024-09-15",
-      next_session_start: "2025-04-15",
-      popular_career_paths: ["Composer", "Music Teacher", "Sound Designer", "Music Producer", "Film Scorer"],
-      related_courses: ["MUS310", "MUS240", "ART260"],
-      success_rate: 76,
-      estimated_study_time: 96,
-      learning_style: ["Practical", "Creative", "Technical"],
-      software_requirements: ["Music Notation Software", "DAW"],
-      accessibility_features: ["Audio Descriptions", "Alternative Assignments"],
-    }
 ]
   
   export default coursesData
